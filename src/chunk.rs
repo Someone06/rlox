@@ -6,9 +6,12 @@ use std::io::Write;
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum OpCode {
-    OpConstant,
-    OpReturn,
+    OpConstant = 0,
+    OpReturn = 1,
 }
+
+// Stores for each OpCode the number of indexes it requires.
+static REQUIRED_INDEXES: [u8; 2] = [1, 0];
 
 impl std::fmt::Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
@@ -61,6 +64,7 @@ impl From<u8> for CodeUnit {
     }
 }
 
+/// This enum represents all constants that can be stored in the constant pool.
 pub enum Value {
     Double(f64),
 }
@@ -82,39 +86,16 @@ pub struct Chunk {
     lines: Vec<u32>,
 }
 
+// Public API of a Chunk.
 impl Chunk {
-    pub fn new() -> Self {
-        Chunk {
-            code: Vec::new(),
-            constants: Vec::new(),
-            lines: Vec::new(),
-        }
-    }
-
-    pub fn write_opcode(&mut self, opcode: OpCode, line: u32) {
-        self.code.push(CodeUnit::from(opcode));
-        self.lines.push(line);
-    }
-
-    pub fn write_index(&mut self, index: u8) {
-        self.code.push(CodeUnit::from(index));
-        self.lines.push(
-            *self
-                .lines
-                .last()
-                .expect("First code unit cannot be an index."),
-        );
-    }
-
-    pub fn add_constant(&mut self, value: Value) -> usize {
-        self.constants.push(value);
-        self.constants.len() - 1
-    }
-
-    pub fn print_dissasemble(&self, name: &str) -> std::io::Result<()> {
+    /// Prints a disassemble of the chunk to stdout.
+    /// Name is the name of this chunk.
+    pub fn print_disassemble(&self, name: &str) -> std::io::Result<()> {
         self.disassemble(name, &mut std::io::stdout())
     }
 
+    /// Writes a disassemble of this chunk to the given writer.
+    /// Name is the name of this chunk.
     pub fn disassemble(&self, name: &str, writer: &mut impl Write) -> std::io::Result<()> {
         writeln!(writer, "== {} ==", name)?;
 
@@ -124,6 +105,43 @@ impl Chunk {
         }
 
         Ok(())
+    }
+}
+
+// Private API of a chunk.
+impl Chunk {
+    fn new() -> Self {
+        Chunk {
+            code: Vec::new(),
+            constants: Vec::new(),
+            lines: Vec::new(),
+        }
+    }
+
+    fn write_opcode(&mut self, opcode: OpCode, line: u32) {
+        self.code.push(CodeUnit::from(opcode));
+        self.lines.push(line);
+    }
+
+    fn write_index(&mut self, index: u8) {
+        self.code.push(CodeUnit::from(index));
+        self.lines.push(
+            *self
+                .lines
+                .last()
+                .expect("First code unit cannot be an index."),
+        );
+    }
+
+    fn add_constant(&mut self, value: Value) -> usize {
+        self.constants.push(value);
+        self.constants.len() - 1
+    }
+
+    fn finish(&mut self) {
+        self.code.shrink_to_fit();
+        self.constants.shrink_to_fit();
+        self.lines.shrink_to_fit();
     }
 
     /// Format: <offset> <opcode> <index> <value>
@@ -181,19 +199,82 @@ impl Chunk {
     }
 }
 
+/// ChunkBuilder is used to incrementally build a Chunk.
+/// It ensures that the Chunk is in a valid state once it is build.
+pub struct ChunkBuilder {
+    chunk: Chunk,
+    required_indexes: u8,
+    max_index: Option<usize>,
+    constant_index: Option<usize>,
+}
+
+impl ChunkBuilder {
+    pub fn new() -> Self {
+        ChunkBuilder {
+            chunk: Chunk::new(),
+            required_indexes: 0,
+            max_index: None,
+            constant_index: None,
+        }
+    }
+
+    pub fn write_opcode(&mut self, opcode: OpCode, line: u32) {
+        if self.required_indexes == 0 {
+            self.chunk.write_opcode(opcode, line);
+            self.required_indexes = REQUIRED_INDEXES[(opcode as u8) as usize];
+        } else {
+            panic!("Requiring an index next.");
+        }
+    }
+
+    // In case we will support > 255 constants, make sure to take a larger index here and break it
+    // up into multiple u8 which can be written individually.
+    pub fn write_index(&mut self, index: u8) {
+        if self.required_indexes != 0 {
+            self.chunk.write_index(index);
+            self.required_indexes -= 1;
+            if self.max_index.is_none() || self.max_index.unwrap() < (index as usize) {
+                self.max_index = Some(index as usize);
+            }
+        } else {
+            panic!("Requiring an opcode next.")
+        }
+    }
+
+    pub fn add_constant(&mut self, value: Value) -> usize {
+        let index = self.chunk.add_constant(value);
+        self.constant_index = Some(index);
+        index
+    }
+
+    pub fn build(mut self) -> Chunk {
+        if self.required_indexes == 0 && self.max_index == self.constant_index {
+            self.chunk.finish();
+            self.chunk
+        } else if self.required_indexes != 0 {
+            panic!("Still requiring an index.");
+        } else {
+            panic!("Did not get the right amount of constants.");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::chunk::{Chunk, OpCode, Value};
+    use crate::chunk::{Chunk, ChunkBuilder, OpCode, Value};
 
     #[test]
     fn disassemble_constant() {
-        let mut chunk = Chunk::new();
-        chunk.write_opcode(OpCode::OpConstant, 0);
-        chunk.write_index(0);
-        chunk.add_constant(Value::Double(2.0));
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_opcode(OpCode::OpConstant, 0);
+        chunk_builder.write_index(0);
+        chunk_builder.add_constant(Value::Double(2.0));
 
         let mut buffer: Vec<u8> = Vec::new();
-        chunk.disassemble("test chunk", &mut buffer).unwrap();
+        chunk_builder
+            .build()
+            .disassemble("test chunk", &mut buffer)
+            .unwrap();
 
         let result = std::str::from_utf8(&buffer).expect("Just wrote a string into the buffer");
         assert_eq!(result, "== test chunk ==\n0000    0 OpConstant    0 '2'\n")
@@ -201,13 +282,72 @@ mod tests {
 
     #[test]
     fn disassemble_return() {
-        let mut chunk = Chunk::new();
-        chunk.write_opcode(OpCode::OpReturn, 0);
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_opcode(OpCode::OpReturn, 0);
 
         let mut buffer: Vec<u8> = Vec::new();
-        chunk.disassemble("test chunk", &mut buffer).unwrap();
+        chunk_builder
+            .build()
+            .disassemble("test chunk", &mut buffer)
+            .unwrap();
 
         let result = std::str::from_utf8(&buffer).expect("Just wrote a string into the buffer");
         assert_eq!(result, "== test chunk ==\n0000    0 OpReturn\n")
+    }
+
+    #[test]
+    #[should_panic]
+    fn require_opcode_first() {
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_index(0);
+        chunk_builder.write_opcode(OpCode::OpReturn, 0);
+        chunk_builder.add_constant(Value::Double(0.0));
+        let _ = chunk_builder.build();
+    }
+
+    #[test]
+    #[should_panic]
+    fn require_index() {
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_opcode(OpCode::OpConstant, 0);
+        chunk_builder.write_opcode(OpCode::OpConstant, 1);
+        chunk_builder.write_index(0);
+        chunk_builder.write_index(1);
+        chunk_builder.add_constant(Value::Double(0.0));
+        chunk_builder.add_constant(Value::Double(1.0));
+        let _ = chunk_builder.build();
+    }
+
+    #[test]
+    #[should_panic]
+    fn too_many_indexes() {
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_opcode(OpCode::OpConstant, 0);
+        chunk_builder.write_index(0);
+        chunk_builder.add_constant(Value::Double(0.0));
+        chunk_builder.write_index(1);
+        chunk_builder.add_constant(Value::Double(1.0));
+        chunk_builder.write_opcode(OpCode::OpReturn, 1);
+        let _ = chunk_builder.build();
+    }
+
+    #[test]
+    #[should_panic]
+    fn not_enough_constants() {
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_opcode(OpCode::OpConstant, 0);
+        chunk_builder.write_index(0);
+        let _ = chunk_builder.build();
+    }
+
+    #[test]
+    #[should_panic]
+    fn too_many_constants() {
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_opcode(OpCode::OpConstant, 0);
+        chunk_builder.write_index(0);
+        chunk_builder.add_constant(Value::Double(0.0));
+        chunk_builder.add_constant(Value::Double(1.0));
+        let _ = chunk_builder.build();
     }
 }
