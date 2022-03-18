@@ -1,5 +1,4 @@
-use static_assertions::assert_eq_size;
-use std::io::Write;
+use ::std::io::Write;
 
 /// This enum represents all opcodes, that is the instruction set of the virtual machine.
 /// We ensure that each opcode can be represented as a u8, to allow for a densely packed bytecode.
@@ -24,30 +23,27 @@ impl std::fmt::Display for OpCode {
     }
 }
 
-// Some opcodes require arguments in form of values (e.g. doubles or strings).
-// Instead of storing these inline we have a separate pool for values in which we index.
-// The indexes are stored inline in the instruction sequence.
+/// Some opcodes require arguments in form of values (e.g. doubles or strings).
+/// Instead of storing these inline we have a separate pool for values in which we index.
+/// The indexes are stored inline in the instruction sequence.
 #[derive(Clone, Copy)]
-union CodeUnit {
+pub union CodeUnit {
     opcode: OpCode,
     index: u8,
 }
 
-// We want to fit code units in an Vec<u8> so, ensure that we have the right size.
-assert_eq_size! {CodeUnit, u8}
-
 impl CodeUnit {
-    // Safety: A code unit eiter stores an opcode or an index, but not which one is stored.
-    //         It is only safe to call this method if it is known (from external knowledge) that
-    //         this code unit currently stores an opcode and not an index.
-    unsafe fn get_opcode(&self) -> OpCode {
+    /// Safety: A code unit eiter stores an opcode or an index, but not which one is stored.
+    ///         It is only safe to call this method if it is known (from external knowledge) that
+    ///         this code unit currently stores an opcode and not an index.
+    pub unsafe fn get_opcode(&self) -> OpCode {
         self.opcode
     }
 
-    // Safety: A code unit eiter stores an opcode or an index, but not which one is stored.
-    //         It is only safe to call this method if it is known (from external knowledge) that
-    //         this code unit currently stores an index and not an opcode.
-    unsafe fn get_index(&self) -> u8 {
+    /// Safety: A code unit eiter stores an opcode or an index, but not which one is stored.
+    ///         It is only safe to call this method if it is known (from external knowledge) that
+    ///         this code unit currently stores an index and not an opcode.
+    pub unsafe fn get_index(&self) -> u8 {
         self.index
     }
 }
@@ -64,7 +60,11 @@ impl From<u8> for CodeUnit {
     }
 }
 
+// We want to fit code units in an Vec<u8> so, ensure that we have the right size.
+::static_assertions::assert_eq_size! {CodeUnit, u8}
+
 /// This enum represents all constants that can be stored in the constant pool.
+#[derive(Clone)]
 pub enum Value {
     Double(f64),
 }
@@ -88,6 +88,19 @@ pub struct Chunk {
 
 // Public API of a Chunk.
 impl Chunk {
+    /// Returns the code unit located at the given instruction index.
+    /// Could be an opcode or an index.
+    /// Panics if the given instruction index is out of range.
+    pub fn get_code_unit(&self, instruction_index: usize) -> CodeUnit {
+        self.code[instruction_index]
+    }
+
+    /// Returns a reference to the value located at the given index.
+    /// Panics if the given index is out of range.
+    pub fn get_value_at_index(&self, index: u8) -> &Value {
+        &self.constants[index as usize]
+    }
+
     /// Prints a disassemble of the chunk to stdout.
     /// Name is the name of this chunk.
     pub fn print_disassemble(&self, name: &str) -> std::io::Result<()> {
@@ -105,6 +118,25 @@ impl Chunk {
         }
 
         Ok(())
+    }
+
+    /// Writes a disassemble of the opcode at the given offset to the given writer.
+    /// Safety: Requires that offset points to an opcode.
+    pub unsafe fn print_disassemble_instruction_unsafe(
+        &self,
+        offset: usize,
+    ) -> Result<(), std::io::Error> {
+        self.disassemble_instruction_unsafe(offset, &mut std::io::stdout())
+    }
+
+    /// Writes a disassemble of the opcode at the given offset to the given writer.
+    /// Safety: Requires that offset points to an opcode.
+    pub unsafe fn disassemble_instruction_unsafe(
+        &self,
+        offset: usize,
+        writer: &mut impl Write,
+    ) -> Result<(), std::io::Error> {
+        self.disassemble_instruction(offset, writer).map(|_| ())
     }
 }
 
@@ -261,7 +293,7 @@ impl ChunkBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::chunk::{Chunk, ChunkBuilder, OpCode, Value};
+    use crate::chunk::{ChunkBuilder, OpCode, Value};
 
     #[test]
     fn disassemble_constant() {
