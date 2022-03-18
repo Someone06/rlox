@@ -6,16 +6,26 @@ use ::std::io::Write;
 #[repr(u8)]
 pub enum OpCode {
     OpConstant = 0,
-    OpReturn = 1,
+    OpNegate = 1,
+    OpAdd = 2,
+    OpSubtract = 3,
+    OpMultiply = 4,
+    OpDivide = 5,
+    OpReturn = 6,
 }
 
 // Stores for each OpCode the number of indexes it requires.
-static REQUIRED_INDEXES: [u8; 2] = [1, 0];
+static REQUIRED_INDEXES: [u8; 7] = [1, 0, 0, 0, 0, 0, 0];
 
 impl std::fmt::Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let s: &str = match &self {
             OpCode::OpConstant => "OpConstant",
+            OpCode::OpNegate => "OpNegate",
+            OpCode::OpAdd => "OpAdd",
+            OpCode::OpSubtract => "OpSubtract",
+            OpCode::OpMultiply => "OpMultiply",
+            OpCode::OpDivide => "OpDivide",
             OpCode::OpReturn => "OpReturn",
         };
 
@@ -64,7 +74,7 @@ impl From<u8> for CodeUnit {
 ::static_assertions::assert_eq_size! {CodeUnit, u8}
 
 /// This enum represents all constants that can be stored in the constant pool.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Value {
     Double(f64),
 }
@@ -200,7 +210,13 @@ impl Chunk {
 
         match opcode {
             OpCode::OpConstant => self.constant_instruction(opcode, offset, writer),
-            OpCode::OpReturn => self.simple_instruction(opcode, offset, writer),
+            OpCode::OpReturn
+            | OpCode::OpNegate
+            | OpCode::OpAdd
+            | OpCode::OpSubtract
+            | OpCode::OpMultiply
+            | OpCode::OpDivide
+            | OpCode::OpReturn => self.simple_instruction(opcode, offset, writer),
             _ => writeln!(writer, "Unknown opcode: {}", opcode as u8).map(|_| offset + 1),
         }
     }
@@ -312,19 +328,29 @@ mod tests {
         assert_eq!(result, "== test chunk ==\n0000    0 OpConstant    0 '2'\n")
     }
 
+    macro_rules! test_stack_only_op {
+        ($op:expr) => {{
+            let op = $op;
+            let mut chunk_builder = ChunkBuilder::new();
+            chunk_builder.write_opcode(op, 0);
+            let mut buffer: Vec<u8> = Vec::new();
+            chunk_builder
+                .build()
+                .disassemble("test chunk", &mut buffer)
+                .unwrap();
+            let result = std::str::from_utf8(&buffer).expect("Just wrote a string into the buffer");
+            assert_eq!(result, format!("== test chunk ==\n0000    0 {}\n", op));
+        }};
+    }
+
     #[test]
-    fn disassemble_return() {
-        let mut chunk_builder = ChunkBuilder::new();
-        chunk_builder.write_opcode(OpCode::OpReturn, 0);
-
-        let mut buffer: Vec<u8> = Vec::new();
-        chunk_builder
-            .build()
-            .disassemble("test chunk", &mut buffer)
-            .unwrap();
-
-        let result = std::str::from_utf8(&buffer).expect("Just wrote a string into the buffer");
-        assert_eq!(result, "== test chunk ==\n0000    0 OpReturn\n")
+    fn disassemble_stack_only_op() {
+        test_stack_only_op!(OpCode::OpAdd);
+        test_stack_only_op!(OpCode::OpSubtract);
+        test_stack_only_op!(OpCode::OpNegate);
+        test_stack_only_op!(OpCode::OpMultiply);
+        test_stack_only_op!(OpCode::OpDivide);
+        test_stack_only_op!(OpCode::OpReturn);
     }
 
     #[test]
