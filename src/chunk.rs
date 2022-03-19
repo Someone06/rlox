@@ -2,7 +2,7 @@ use ::std::io::Write;
 
 /// This enum represents all opcodes, that is the instruction set of the virtual machine.
 /// We ensure that each opcode can be represented as a u8, to allow for a densely packed bytecode.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum OpCode {
     OpConstant = 0,
@@ -19,17 +19,7 @@ static REQUIRED_INDEXES: [u8; 7] = [1, 0, 0, 0, 0, 0, 0];
 
 impl std::fmt::Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        let s: &str = match &self {
-            OpCode::OpConstant => "OpConstant",
-            OpCode::OpNegate => "OpNegate",
-            OpCode::OpAdd => "OpAdd",
-            OpCode::OpSubtract => "OpSubtract",
-            OpCode::OpMultiply => "OpMultiply",
-            OpCode::OpDivide => "OpDivide",
-            OpCode::OpReturn => "OpReturn",
-        };
-
-        f.write_str(s)
+        write!(f, "{:?}", self)
     }
 }
 
