@@ -1,36 +1,49 @@
-use lazy_static::lazy_static;
-
 use crate::tokens::{Token, TokenType};
 
-// Turn a &str in a Vec<char>.
-macro_rules! chars {
-    ($str:literal) => {
-        $str.to_string().chars().collect::<Vec<char>>()
+macro_rules! replace_expr {
+    ($_t:tt $sub:expr) => {
+        $sub
     };
 }
 
-// This is a hack a to get error messages in form of &'static [char] and should be replaced by some better means.
-lazy_static! {
-    // Used for error messages.
-    static ref UNEXPECTED_CHAR: Vec<char> = chars!("Unexpected character.");
-    static ref UNTERMINATED_STRING: Vec<char> = chars!("Unterminated string.");
-
-    // Needed for the trie used to check for keywords.
-    static ref AR: Vec<char> = chars!("ar");
-    static ref ETURN: Vec<char> = chars!("eturn");
-    static ref F: Vec<char> = chars!("f");
-    static ref HILE: Vec<char> = chars!("hile");
-    static ref IL: Vec<char> = chars!("il");
-    static ref IS: Vec<char> = chars!("is");
-    static ref LASS: Vec<char> = chars!("lass");
-    static ref LSE: Vec<char> = chars!("lse");
-    static ref N: Vec<char> = chars!("n");
-    static ref ND: Vec<char> = chars!("nd");
-    static ref R: Vec<char> = chars!("r");
-    static ref RINT: Vec<char> = chars!("rint");
-    static ref UE: Vec<char> = chars!("ue");
-    static ref UPER: Vec<char> = chars!("uper");
+// Count the number of token at compile time.
+// See: https://danielkeep.github.io/tlborm/book/blk-counting.html#slice-length
+macro_rules! count_tts {
+    ($($tts:tt)*) => {
+        <[()]>::len(&[$(replace_expr!($tts ())),*])
+    };
 }
+
+// This macro constructs a char array with a given name from a list of chars.
+// It would be a lot nicer, if we could somehow directly turn a string into a char array.
+// However, currently the only way to deconstruct a String (or str) to a sequence of char is byi
+// using String::chars() which is not const.
+// So until there is a better way to turn a string into a char, this ugly hack will stay in place.
+macro_rules! chars {
+   ($name:ident $($c:literal)+) => {
+      const $name: [char; count_tts!($($c)+)] = [ $($c,)+ ];
+    };
+}
+
+// Error messages.
+chars! {UNEXPECTED_CHAR 'U' 'n' 'e' 'x' 'p' 'e' 'c' 't' 'e' 'd' ' ' 'c' 'h' 'a' 'r' 'a' 'c' 't' 'e' 'r' '.'}
+chars! {UNTERMINATED_STRING 'U' 'n' 't' 'e' 'r' 'm' 'i' 'n' 'a' 't' 'e' 'd' ' ' 'S' 't' 'r' 'i' 'n' 'g' '.'}
+
+// Used to check for keywords.
+chars! {AR 'a' 'r'}
+chars! {ETURN 'e' 't' 'u' 'r' 'n'}
+chars! {F 'f'}
+chars! {HILE 'h' 'i' 'l' 'e'}
+chars! {IL 'i' 'l'}
+chars! {IS 'i' 's'}
+chars! {LASS 'l' 'a' 's' 's'}
+chars! {LSE 'l' 'e' 's'}
+chars! {N 'n'}
+chars! {ND 'n' 'd'}
+chars! {R 'r'}
+chars! {RINT 'r' 'i' 'n' 't'}
+chars! {UE 'u' 'e'}
+chars! {UPER 'u' 'p' 'e' 'r'}
 
 /// The Scanner is used to parse the input in form of a &[char] into a token stream.
 /// This is done lazily by using an iterator.
@@ -306,6 +319,7 @@ impl<'a> Iterator for ScannerImpl<'a> {
     }
 }
 
+// Underscores are allowed anywhere in identifiers.
 fn is_alpha(c: char) -> bool {
     c.is_alphabetic() || c == '_'
 }
