@@ -37,7 +37,7 @@ chars! {HILE 'h' 'i' 'l' 'e'}
 chars! {IL 'i' 'l'}
 chars! {IS 'i' 's'}
 chars! {LASS 'l' 'a' 's' 's'}
-chars! {LSE 'l' 'e' 's'}
+chars! {LSE 'l' 's' 'e'}
 chars! {N 'n'}
 chars! {ND 'n' 'd'}
 chars! {R 'r'}
@@ -153,7 +153,7 @@ impl<'a> ScannerImpl<'a> {
     }
 
     fn identifier(&mut self) -> Token<'a> {
-        while is_alpha(self.peek()) || self.peek().is_digit(10) {
+        while !self.is_at_end() && (is_alpha(self.peek()) || self.peek().is_digit(10)) {
             self.advance();
         }
 
@@ -215,7 +215,7 @@ impl<'a> ScannerImpl<'a> {
     }
 
     fn string(&mut self) -> Token<'a> {
-        while self.peek() != '"' && !self.is_at_end() {
+        while !self.is_at_end() && self.peek() != '"' {
             if self.peek() == '\n' {
                 self.line += 1;
             }
@@ -232,15 +232,15 @@ impl<'a> ScannerImpl<'a> {
     }
 
     fn number(&mut self) -> Token<'a> {
-        while self.peek().is_digit(10) {
+        while !self.is_at_end() && self.peek().is_digit(10) {
             self.advance();
         }
 
-        if self.peek() == '.' && self.peek_next().is_digit(10) {
+        if !self.is_at_end() && self.peek() == '.' && self.peek_next().is_digit(10) {
             self.advance();
         }
 
-        while self.peek().is_digit(10) {
+        while !self.is_at_end() && self.peek().is_digit(10) {
             self.advance();
         }
 
@@ -248,7 +248,7 @@ impl<'a> ScannerImpl<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        loop {
+        while !self.is_at_end() {
             match self.peek() {
                 ' ' | '\r' | '\t' => {
                     self.current += 1;
@@ -322,4 +322,178 @@ impl<'a> Iterator for ScannerImpl<'a> {
 // Underscores are allowed anywhere in identifiers.
 fn is_alpha(c: char) -> bool {
     c.is_alphabetic() || c == '_'
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tokens::{Token, TokenType};
+    use crate::Scanner;
+
+    macro_rules! chars {
+        ($input: expr) => {
+            $input.to_string().chars().collect::<Vec<char>>()
+        };
+    }
+
+    macro_rules! scan {
+        ($v:expr) => {
+            Scanner::new($v.as_slice()).parse().collect::<Vec<Token>>()
+        };
+    }
+
+    macro_rules! tt {
+        ($v:ident) => {
+            $v.iter()
+                .map(|t| t.get_token_type())
+                .collect::<Vec<TokenType>>()
+        };
+    }
+
+    macro_rules! lexmes {
+        ($v:ident) => {
+            $v.iter()
+                .map(|t| t.get_lexme())
+                .map(|l| l.iter().collect::<String>())
+                .collect::<Vec<String>>()
+        };
+    }
+
+    #[test]
+    fn punctuation() {
+        let input = chars!("(){};,.-+/*!!====<<=>>=");
+        let result = scan!(input);
+
+        let expected_types = vec![
+            TokenType::LeftParen,
+            TokenType::RightParen,
+            TokenType::LeftBrace,
+            TokenType::RightBrace,
+            TokenType::Semicolon,
+            TokenType::Comma,
+            TokenType::Dot,
+            TokenType::Minus,
+            TokenType::Plus,
+            TokenType::Slash,
+            TokenType::Star,
+            TokenType::Bang,
+            TokenType::BangEqual,
+            TokenType::EqualEqual,
+            TokenType::Equal,
+            TokenType::Less,
+            TokenType::LessEqual,
+            TokenType::Greater,
+            TokenType::GreaterEqual,
+        ];
+        assert_eq!(tt!(result), expected_types);
+    }
+
+    #[test]
+    fn numbers() {
+        let expected = vec!["1", "2", "3.4", "5.6", "123.346", "0.034"];
+        let input = chars!(expected.join(" "));
+        let result = scan!(input);
+        assert_eq!(result.len(), expected.len());
+        assert!(result
+            .iter()
+            .map(|t| t.get_token_type())
+            .all(|t| t.eq(&TokenType::Number)));
+
+        assert_eq!(lexmes!(result), expected);
+    }
+
+    #[test]
+    fn keywords() {
+        let keyword = vec![
+            "and", "class", "else", "false", "for", "fun", "if", "nil", "or", "print", "return",
+            "super", "this", "true", "var", "while",
+        ];
+
+        let tokens = vec![
+            TokenType::And,
+            TokenType::Class,
+            TokenType::Else,
+            TokenType::False,
+            TokenType::For,
+            TokenType::Fun,
+            TokenType::If,
+            TokenType::Nil,
+            TokenType::Or,
+            TokenType::Print,
+            TokenType::Return,
+            TokenType::Super,
+            TokenType::This,
+            TokenType::True,
+            TokenType::Var,
+            TokenType::While,
+        ];
+
+        let input = chars!(keyword.join(" "));
+        let result = scan!(input);
+        assert_eq!(result.len(), keyword.len());
+        assert_eq!(tt!(result), tokens);
+    }
+
+    #[test]
+    fn identifiers() {
+        let input = chars!("iff suuper fun_ H3110");
+        let expected = vec!["iff", "suuper", "fun_", "H3110"];
+        let result = scan!(input);
+
+        assert_eq!(result.len(), expected.len());
+        assert!(result
+            .iter()
+            .map(|t| t.get_token_type())
+            .all(|t| t.eq(&TokenType::Identifier)));
+
+        assert_eq!(lexmes!(result), expected);
+    }
+
+    #[test]
+    fn strings() {
+        let input = chars!("\"if\" \"super\" \"h3110\"");
+        let expected = vec!["\"if\"", "\"super\"", "\"h3110\""];
+        let result = scan!(input);
+
+        assert_eq!(result.len(), expected.len());
+        assert!(result
+            .iter()
+            .map(|t| t.get_token_type())
+            .all(|t| t.eq(&TokenType::String)));
+
+        assert_eq!(lexmes!(result), expected);
+    }
+
+    #[test]
+    fn not_terminated_string() {
+        let input = chars!("\"if");
+        let result = scan!(input);
+
+        assert_eq!(result.len(), 1);
+        assert_eq![result[0].get_token_type(), TokenType::Error];
+    }
+
+    #[test]
+    fn unexpected_character() {
+        let input = chars!("if$");
+        let result = scan!(input);
+
+        assert_eq!(result.len(), 2);
+        assert_eq![result[0].get_token_type(), TokenType::If];
+        assert_eq![result[1].get_token_type(), TokenType::Error];
+    }
+
+    #[test]
+    fn whitespace() {
+        let input = chars!("if\t(\r\ntrue\n\n\t )\n");
+        let result = scan!(input);
+
+        let expected = vec![
+            TokenType::If,
+            TokenType::LeftParen,
+            TokenType::True,
+            TokenType::RightParen,
+        ];
+        assert_eq!(result.len(), expected.len());
+        assert_eq!(tt!(result), expected);
+    }
 }
