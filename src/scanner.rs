@@ -71,6 +71,7 @@ struct ScannerImpl<'a> {
     start: usize,
     current: usize,
     line: u32,
+    returned_eof: bool,
 }
 
 impl<'a> ScannerImpl<'a> {
@@ -80,6 +81,7 @@ impl<'a> ScannerImpl<'a> {
             start: 0,
             current: 0,
             line: 1,
+            returned_eof: false,
         }
     }
 
@@ -88,7 +90,12 @@ impl<'a> ScannerImpl<'a> {
         self.start = self.current;
 
         if self.is_at_end() {
-            return None;
+            if self.returned_eof {
+                return None;
+            } else {
+                self.returned_eof = true;
+                return Some(self.make_token(TokenType::EOF));
+            }
         }
 
         let c = self.advance();
@@ -352,6 +359,7 @@ mod tests {
     macro_rules! lexmes {
         ($v:ident) => {
             $v.iter()
+                .filter(|t| t.get_token_type() != TokenType::EOF)
                 .map(|t| t.get_lexme())
                 .map(|l| l.iter().collect::<String>())
                 .collect::<Vec<String>>()
@@ -383,6 +391,7 @@ mod tests {
             TokenType::LessEqual,
             TokenType::Greater,
             TokenType::GreaterEqual,
+            TokenType::EOF,
         ];
         assert_eq!(tt!(result), expected_types);
     }
@@ -392,12 +401,11 @@ mod tests {
         let expected = vec!["1", "2", "3.4", "5.6", "123.346", "0.034"];
         let input = chars!(expected.join(" "));
         let result = scan!(input);
-        assert_eq!(result.len(), expected.len());
-        assert!(result
+        assert_eq!(result.len(), expected.len() + 1);
+        assert!(tt!(result)
             .iter()
-            .map(|t| t.get_token_type())
+            .filter(|tt| *tt != &TokenType::EOF)
             .all(|t| t.eq(&TokenType::Number)));
-
         assert_eq!(lexmes!(result), expected);
     }
 
@@ -425,11 +433,12 @@ mod tests {
             TokenType::True,
             TokenType::Var,
             TokenType::While,
+            TokenType::EOF,
         ];
 
         let input = chars!(keyword.join(" "));
         let result = scan!(input);
-        assert_eq!(result.len(), keyword.len());
+        assert_eq!(result.len(), keyword.len() + 1);
         assert_eq!(tt!(result), tokens);
     }
 
@@ -439,10 +448,10 @@ mod tests {
         let expected = vec!["iff", "suuper", "fun_", "H3110"];
         let result = scan!(input);
 
-        assert_eq!(result.len(), expected.len());
-        assert!(result
+        assert_eq!(result.len(), expected.len() + 1);
+        assert!(tt!(result)
             .iter()
-            .map(|t| t.get_token_type())
+            .filter(|tt| *tt != &TokenType::EOF)
             .all(|t| t.eq(&TokenType::Identifier)));
 
         assert_eq!(lexmes!(result), expected);
@@ -454,10 +463,10 @@ mod tests {
         let expected = vec!["\"if\"", "\"super\"", "\"h3110\""];
         let result = scan!(input);
 
-        assert_eq!(result.len(), expected.len());
-        assert!(result
+        assert_eq!(result.len(), expected.len() + 1);
+        assert!(tt!(result)
             .iter()
-            .map(|t| t.get_token_type())
+            .filter(|tt| *tt != &TokenType::EOF)
             .all(|t| t.eq(&TokenType::String)));
 
         assert_eq!(lexmes!(result), expected);
@@ -468,8 +477,9 @@ mod tests {
         let input = chars!("\"if");
         let result = scan!(input);
 
-        assert_eq!(result.len(), 1);
+        assert_eq!(result.len(), 2);
         assert_eq![result[0].get_token_type(), TokenType::Error];
+        assert_eq![result[1].get_token_type(), TokenType::EOF];
     }
 
     #[test]
@@ -477,9 +487,10 @@ mod tests {
         let input = chars!("if$");
         let result = scan!(input);
 
-        assert_eq!(result.len(), 2);
+        assert_eq!(result.len(), 3);
         assert_eq![result[0].get_token_type(), TokenType::If];
         assert_eq![result[1].get_token_type(), TokenType::Error];
+        assert_eq![result[2].get_token_type(), TokenType::EOF];
     }
 
     #[test]
@@ -492,6 +503,7 @@ mod tests {
             TokenType::LeftParen,
             TokenType::True,
             TokenType::RightParen,
+            TokenType::EOF,
         ];
         assert_eq!(result.len(), expected.len());
         assert_eq!(tt!(result), expected);

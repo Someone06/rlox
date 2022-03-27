@@ -49,6 +49,7 @@ pub enum TokenType {
     While,
 
     Error,
+    EOF,
 }
 
 impl std::fmt::Display for TokenType {
@@ -82,6 +83,10 @@ impl<'a> Token<'a> {
 
     pub fn get_line(&self) -> u32 {
         self.line
+    }
+
+    pub fn get_lexme_string(&self) -> String {
+        self.lexme.iter().collect::<String>()
     }
 }
 
