@@ -2,20 +2,41 @@ use ::std::io::Write;
 
 /// This enum represents all opcodes, that is the instruction set of the virtual machine.
 /// We ensure that each opcode can be represented as a u8, to allow for a densely packed bytecode.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, ::enum_map::Enum)]
 #[repr(u8)]
 pub enum OpCode {
-    OpConstant = 0,
-    OpNegate = 1,
-    OpAdd = 2,
-    OpSubtract = 3,
-    OpMultiply = 4,
-    OpDivide = 5,
-    OpReturn = 6,
+    OpConstant,
+    OpNegate,
+    OpAdd,
+    OpSubtract,
+    OpMultiply,
+    OpDivide,
+    OpReturn,
 }
 
-// Stores for each OpCode the number of indexes it requires.
-static REQUIRED_INDEXES: [u8; 7] = [1, 0, 0, 0, 0, 0, 0];
+struct IndexesPerOpCode {
+    map: ::enum_map::EnumMap<OpCode, u8>,
+}
+
+impl IndexesPerOpCode {
+    fn new() -> Self {
+        let map = ::enum_map::enum_map! {
+            OpCode::OpConstant => 1,
+            OpCode::OpNegate => 0,
+            OpCode::OpAdd => 0,
+            OpCode::OpSubtract => 0,
+            OpCode::OpMultiply => 0,
+            OpCode::OpDivide => 0,
+            OpCode::OpReturn => 0,
+        };
+
+        IndexesPerOpCode { map }
+    }
+
+    fn get(&self, opcode: OpCode) -> u8 {
+        self.map[opcode]
+    }
+}
 
 impl std::fmt::Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
@@ -205,9 +226,7 @@ impl Chunk {
             | OpCode::OpAdd
             | OpCode::OpSubtract
             | OpCode::OpMultiply
-            | OpCode::OpDivide
-            | OpCode::OpReturn => self.simple_instruction(opcode, offset, writer),
-            _ => writeln!(writer, "Unknown opcode: {}", opcode as u8).map(|_| offset + 1),
+            | OpCode::OpDivide => self.simple_instruction(opcode, offset, writer),
         }
     }
 
@@ -244,6 +263,7 @@ pub struct ChunkBuilder {
     required_indexes: u8,
     max_index: Option<usize>,
     constant_index: Option<usize>,
+    indexes_per_op: IndexesPerOpCode,
 }
 
 impl ChunkBuilder {
@@ -253,13 +273,14 @@ impl ChunkBuilder {
             required_indexes: 0,
             max_index: None,
             constant_index: None,
+            indexes_per_op: IndexesPerOpCode::new(),
         }
     }
 
     pub fn write_opcode(&mut self, opcode: OpCode, line: u32) {
         if self.required_indexes == 0 {
             self.chunk.write_opcode(opcode, line);
-            self.required_indexes = REQUIRED_INDEXES[(opcode as u8) as usize];
+            self.required_indexes = self.indexes_per_op.get(opcode);
         } else {
             panic!("Requiring an index next.");
         }
