@@ -295,6 +295,12 @@ impl ChunkBuilder {
             panic!("Did not get the right amount of constants.");
         }
     }
+
+    /// Writes a disassemble of the chunk that's been build so far to stdout.
+    /// Name is the name of this chunk.
+    pub fn print_disassemble(&self, name: &str) -> std::io::Result<()> {
+        self.chunk.print_disassemble(name)
+    }
 }
 
 #[cfg(test)]
