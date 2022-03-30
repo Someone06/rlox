@@ -1,6 +1,12 @@
 use crate::chunk::{Chunk, ChunkBuilder, OpCode, Value};
 use crate::tokens::{Token, TokenType};
 
+macro_rules! emit_opcodes {
+        ($instance:ident, $($opcode:expr $(,)?),+ $(,)?) => {{
+              $($instance.emit_opcode($opcode);)+
+        }};
+}
+
 pub struct Compiler<'a, I: Iterator<Item = Token<'a>>> {
     source: I,
     current: Token<'a>,
@@ -55,9 +61,13 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
         self.parse_precedence(precedence);
 
         match &operator {
-            TokenType::Plus => {
-                self.emit_opcode(OpCode::OpAdd);
-            }
+            TokenType::BangEqual => emit_opcodes!(self, OpCode::OpEqual, OpCode::OpNot),
+            TokenType::EqualEqual => self.emit_opcode(OpCode::OpEqual),
+            TokenType::Greater => self.emit_opcode(OpCode::OpGreater),
+            TokenType::GreaterEqual => emit_opcodes!(self, OpCode::OpLess, OpCode::OpNot),
+            TokenType::Less => self.emit_opcode(OpCode::OpLess),
+            TokenType::LessEqual => emit_opcodes!(self, OpCode::OpGreater, OpCode::OpNot),
+            TokenType::Plus => self.emit_opcode(OpCode::OpAdd),
             TokenType::Minus => self.emit_opcode(OpCode::OpSubtract),
             TokenType::Star => self.emit_opcode(OpCode::OpMultiply),
             TokenType::Slash => self.emit_opcode(OpCode::OpDivide),
@@ -69,6 +79,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
         let operator_type = self.previous.get_token_type();
         self.parse_precedence(Precedence::Unary);
         match operator_type {
+            TokenType::Bang => self.emit_opcode(OpCode::OpNot),
             TokenType::Minus => self.emit_opcode(OpCode::OpNegate),
             _ => unreachable!(),
         }
@@ -86,6 +97,15 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
             .parse::<f64>()
             .expect("Expected the lexme to be a number.");
         self.emit_constant(Value::Double(value));
+    }
+
+    fn literal(&mut self) {
+        match self.previous.get_token_type() {
+            TokenType::True => self.emit_opcode(OpCode::OpTrue),
+            TokenType::False => self.emit_opcode(OpCode::OpFalse),
+            TokenType::Nil => self.emit_opcode(OpCode::OpNil),
+            _ => unreachable!(),
+        }
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) {
@@ -309,31 +329,31 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
             TokenType::Semicolon    => ParseRule::new(None, None, Precedence::None),
             TokenType::Slash        => ParseRule::new(None, Some(|c| c.binary()), Precedence::Factor),
             TokenType::Star         => ParseRule::new(None, Some(|c| c.binary()), Precedence::Factor),
-            TokenType::Bang         => ParseRule::new(None, None, Precedence::None),
-            TokenType::BangEqual    => ParseRule::new(None, None, Precedence::None),
+            TokenType::Bang         => ParseRule::new(Some(|c| c.unary()), None, Precedence::None),
+            TokenType::BangEqual    => ParseRule::new(None, Some(|c| c.binary()), Precedence::Equality),
             TokenType::Equal        => ParseRule::new(None, None, Precedence::None),
-            TokenType::EqualEqual   => ParseRule::new(None, None, Precedence::None),
-            TokenType::Greater      => ParseRule::new(None, None, Precedence::None),
-            TokenType::GreaterEqual => ParseRule::new(None, None, Precedence::None),
-            TokenType::Less         => ParseRule::new(None, None, Precedence::None),
-            TokenType::LessEqual    => ParseRule::new(None, None, Precedence::None),
+            TokenType::EqualEqual   => ParseRule::new(None, Some(|c| c.binary()), Precedence::Equality),
+            TokenType::Greater      => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
+            TokenType::GreaterEqual => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
+            TokenType::Less         => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
+            TokenType::LessEqual    => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
             TokenType::Identifier   => ParseRule::new(None, None, Precedence::None),
             TokenType::String       => ParseRule::new(None, None, Precedence::None),
             TokenType::Number       => ParseRule::new(Some(|c| {c.number()}), None, Precedence::None),
             TokenType::And          => ParseRule::new(None, None, Precedence::None),
             TokenType::Class        => ParseRule::new(None, None, Precedence::None),
             TokenType::Else         => ParseRule::new(None, None, Precedence::None),
-            TokenType::False        => ParseRule::new(None, None, Precedence::None),
+            TokenType::False        => ParseRule::new(Some(|c| c.literal()), None, Precedence::None),
             TokenType::Fun          => ParseRule::new(None, None, Precedence::None),
             TokenType::For          => ParseRule::new(None, None, Precedence::None),
             TokenType::If           => ParseRule::new(None, None, Precedence::None),
-            TokenType::Nil          => ParseRule::new(None, None, Precedence::None),
+            TokenType::Nil          => ParseRule::new(Some(|c| c.literal()), None, Precedence::None),
             TokenType::Or           => ParseRule::new(None, None, Precedence::None),
             TokenType::Print        => ParseRule::new(None, None, Precedence::None),
             TokenType::Return       => ParseRule::new(None, None, Precedence::None),
             TokenType::Super        => ParseRule::new(None, None, Precedence::None),
             TokenType::This         => ParseRule::new(None, None, Precedence::None),
-            TokenType::True         => ParseRule::new(None, None, Precedence::None),
+            TokenType::True         => ParseRule::new(Some(|c| c.literal()), None, Precedence::None),
             TokenType::Var          => ParseRule::new(None, None, Precedence::None),
             TokenType::While        => ParseRule::new(None, None, Precedence::None),
             TokenType::Error        => ParseRule::new(None, None, Precedence::None),

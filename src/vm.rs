@@ -53,49 +53,82 @@ impl VM {
                         .expect("Stack should not be empty when execution OpNegate.")
                     {
                         Value::Double(ref mut f) => *f *= -1.0,
-                        _ => panic!("Negate not implemented for values other than numbers."),
+                        _ => {
+                            self.runtime_error("Operand must be a number.");
+                            return Err(InterpretResult::RuntimeError);
+                        }
                     }
                 }
                 OpCode::OpAdd => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
-                            Value::Double(f1 + f2)
+                            Ok(Value::Double(f1 + f2))
                         } else {
-                            panic!("Expected to numbers to add.")
+                            Err(InterpretResult::RuntimeError)
                         }
                     };
-                    self.binary_double_op(function);
+                    self.binary_double_op(function)?;
                 }
                 OpCode::OpSubtract => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
-                            Value::Double(f1 - f2)
+                            Ok(Value::Double(f1 - f2))
                         } else {
-                            panic!("Expected to numbers to add.")
+                            Err(InterpretResult::RuntimeError)
                         }
                     };
-                    self.binary_double_op(function);
+                    self.binary_double_op(function)?;
                 }
                 OpCode::OpMultiply => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
-                            Value::Double(f1 * f2)
+                            Ok(Value::Double(f1 * f2))
                         } else {
-                            panic!("Expected to numbers to add.")
+                            Err(InterpretResult::RuntimeError)
                         }
                     };
-                    self.binary_double_op(function);
+                    self.binary_double_op(function)?;
                 }
                 OpCode::OpDivide => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
-                            Value::Double(f1 / f2)
+                            Ok(Value::Double(f1 / f2))
                         } else {
-                            panic!("Expected to numbers to add.")
+                            Err(InterpretResult::RuntimeError)
                         }
                     };
-                    self.binary_double_op(function);
+                    self.binary_double_op(function)?;
                 }
+                OpCode::OpNot => {
+                    let value = Value::Bool(self.stack.pop().unwrap().is_falsey());
+                    self.stack.push(value);
+                }
+                OpCode::OpEqual => {
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    self.stack.push(Value::Bool(a == b));
+                }
+                OpCode::OpLess => {
+                    let function = |a, b| {
+                        if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
+                            Ok(Value::Bool(f1 < f2))
+                        } else {
+                            Err(InterpretResult::RuntimeError)
+                        }
+                    };
+                    self.binary_double_op(function)?;
+                }
+                OpCode::OpGreater => {
+                    let function = |a, b| {
+                        if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
+                            Ok(Value::Bool(f1 > f2))
+                        } else {
+                            Err(InterpretResult::RuntimeError)
+                        }
+                    };
+                    self.binary_double_op(function)?;
+                }
+
                 OpCode::OpConstant => {
                     // Safety: We know that OpConstant takes one arguments to which self.ip points,
                     //         because it is incremented after reading this opcode.
@@ -104,12 +137,18 @@ impl VM {
                     let value = unsafe { self.read_constant() }.clone();
                     self.stack.push(value);
                 }
-                _ => panic!(),
+
+                OpCode::OpTrue => self.stack.push(Value::Bool(true)),
+                OpCode::OpFalse => self.stack.push(Value::Bool(false)),
+                OpCode::OpNil => self.stack.push(Value::Nil),
             }
         }
     }
 
-    fn binary_double_op(&mut self, op: impl Fn(Value, Value) -> Value) {
+    fn binary_double_op(
+        &mut self,
+        op: impl Fn(Value, Value) -> Result<Value, InterpretResult>,
+    ) -> Result<(), InterpretResult> {
         let b = self
             .stack
             .pop()
@@ -118,7 +157,21 @@ impl VM {
             .stack
             .pop()
             .expect("Expecting stack size at least 2 for binary op.");
-        self.stack.push(op(a, b));
+        match op(a, b) {
+            Ok(result) => {
+                self.stack.push(result);
+                Ok(())
+            }
+            Err(error) => {
+                self.runtime_error("Operands must be numbers.");
+                Err(error)
+            }
+        }
+    }
+
+    fn reset_stack(&mut self) {
+        self.stack.clear();
+        self.ip = 0;
     }
 
     /// Safety: It is only safe to call this function when self.ip is the index of an index in
@@ -140,6 +193,16 @@ impl VM {
         code_unit.get_opcode()
     }
 
+    fn runtime_error(&mut self, message: &str) {
+        eprintln!(
+            "{}\n[line {}] in script",
+            message,
+            self.chunk.get_source_code_line(self.ip)
+        );
+
+        self.reset_stack();
+    }
+
     #[cfg(debug_assertions)]
     fn print_stack(&self) {
         self.stack.iter().for_each(|value| print!("[{}]", value));
@@ -149,7 +212,6 @@ impl VM {
 
 #[cfg(test)]
 mod tests {
-    use crate::chunk::Value::Double;
     use crate::chunk::{ChunkBuilder, OpCode, Value};
     use crate::vm::VM;
 
@@ -167,7 +229,8 @@ mod tests {
             let mut vm = VM::new(chunk);
             let result = vm.interpret().unwrap();
             match result {
-                Double(float) => assert_eq!($result, float.round() as isize),
+                Value::Double(float) => assert_eq!($result, float.round() as isize),
+                _ => panic!("Expected a double value."),
             }
         }};
     }

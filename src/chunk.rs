@@ -6,11 +6,18 @@ use ::std::io::Write;
 #[repr(u8)]
 pub enum OpCode {
     OpConstant,
+    OpNil,
+    OpTrue,
+    OpFalse,
     OpNegate,
     OpAdd,
     OpSubtract,
     OpMultiply,
     OpDivide,
+    OpNot,
+    OpEqual,
+    OpGreater,
+    OpLess,
     OpReturn,
 }
 
@@ -22,11 +29,18 @@ impl IndexesPerOpCode {
     fn new() -> Self {
         let map = ::enum_map::enum_map! {
             OpCode::OpConstant => 1,
+            OpCode::OpNil => 0,
+            OpCode::OpTrue => 0,
+            OpCode::OpFalse => 0,
             OpCode::OpNegate => 0,
             OpCode::OpAdd => 0,
             OpCode::OpSubtract => 0,
             OpCode::OpMultiply => 0,
             OpCode::OpDivide => 0,
+            OpCode::OpNot => 0,
+            OpCode::OpEqual => 0,
+            OpCode::OpGreater => 0,
+            OpCode::OpLess => 0,
             OpCode::OpReturn => 0,
         };
 
@@ -85,15 +99,25 @@ impl From<u8> for CodeUnit {
 ::static_assertions::assert_eq_size! {CodeUnit, u8}
 
 /// This enum represents all constants that can be stored in the constant pool.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
+    Bool(bool),
     Double(f64),
+    Nil,
+}
+
+impl Value {
+    pub fn is_falsey(&self) -> bool {
+        matches!(self, Value::Nil | Value::Bool(false))
+    }
 }
 
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let s = match &self {
+            Value::Bool(b) => b.to_string(),
             Value::Double(f) => f.to_string(),
+            Value::Nil => String::from("Nil"),
         };
 
         f.write_str(s.as_str())
@@ -114,6 +138,13 @@ impl Chunk {
     /// Panics if the given instruction index is out of range.
     pub fn get_code_unit(&self, instruction_index: usize) -> CodeUnit {
         self.code[instruction_index]
+    }
+
+    /// Returns the number of the source code line that corresponds to the instruction located at the
+    /// given instruction index.
+    /// Panics if the given instruction index is out of range.
+    pub fn get_source_code_line(&self, instruction_index: usize) -> u32 {
+        self.lines[instruction_index]
     }
 
     /// Returns a reference to the value located at the given index.
@@ -222,11 +253,18 @@ impl Chunk {
         match opcode {
             OpCode::OpConstant => self.constant_instruction(opcode, offset, writer),
             OpCode::OpReturn
+            | OpCode::OpEqual
+            | OpCode::OpLess
+            | OpCode::OpGreater
             | OpCode::OpNegate
+            | OpCode::OpNot
             | OpCode::OpAdd
             | OpCode::OpSubtract
             | OpCode::OpMultiply
-            | OpCode::OpDivide => self.simple_instruction(opcode, offset, writer),
+            | OpCode::OpDivide
+            | OpCode::OpTrue
+            | OpCode::OpFalse
+            | OpCode::OpNil => self.simple_instruction(opcode, offset, writer),
         }
     }
 
