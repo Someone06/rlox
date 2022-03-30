@@ -6,6 +6,7 @@ use crate::vm::VM;
 
 mod chunk;
 mod compile;
+mod intern_string;
 mod scanner;
 mod tokens;
 mod vm;
