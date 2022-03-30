@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Symbol {
     intern: Rc<String>,
 }
@@ -61,5 +61,53 @@ impl SymbolTable {
             self.pool.insert(rc.clone());
             Symbol::new(rc)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::ops::Deref;
+
+    use crate::intern_string::{Symbol, SymbolTable};
+
+    #[test]
+    fn it_works() {
+        let mut table = SymbolTable::new();
+        let msg = "Hello world!";
+        let symbol = table.intern(String::from(msg));
+        assert_eq!(msg, *symbol);
+    }
+
+    #[test]
+    fn more_strings() {
+        let mut table = SymbolTable::new();
+        let strs = vec!["Hello", "42", "1337", "\"'$$%&\"", "World"];
+        let strings = strs
+            .iter()
+            .map(|s| String::from(*s))
+            .collect::<Vec<String>>();
+        let interned = strings
+            .iter()
+            .map(|s| table.intern(s.clone()))
+            .collect::<HashSet<Symbol>>();
+        assert_eq!(strs.len(), interned.len());
+
+        assert_eq!(
+            strs.iter()
+                .rev()
+                .map(|s| String::from(*s))
+                .map(|s| table.intern(s))
+                .collect::<HashSet<Symbol>>(),
+            interned
+        );
+
+        assert_eq!(
+            interned
+                .iter()
+                .map(|s| s.deref().clone())
+                .collect::<HashSet<String>>(),
+            strings.iter().cloned().collect::<HashSet<String>>()
+        );
     }
 }
