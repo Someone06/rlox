@@ -25,6 +25,7 @@ pub enum OpCode {
     OpPop,
     OpDefineGlobal,
     OpGetGlobal,
+    OpSetGlobal,
 }
 
 struct IndexesPerOpCode {
@@ -52,6 +53,7 @@ impl IndexesPerOpCode {
             OpCode::OpPop => 0,
             OpCode::OpDefineGlobal => 1,
             OpCode::OpGetGlobal => 1,
+            OpCode::OpSetGlobal => 1,
         };
 
         IndexesPerOpCode { map }
@@ -263,9 +265,10 @@ impl Chunk {
         let opcode = unsafe { code_unit.get_opcode() };
 
         match opcode {
-            OpCode::OpConstant | OpCode::OpDefineGlobal | OpCode::OpGetGlobal => {
-                self.constant_instruction(opcode, offset, writer)
-            }
+            OpCode::OpConstant
+            | OpCode::OpDefineGlobal
+            | OpCode::OpGetGlobal
+            | OpCode::OpSetGlobal => self.constant_instruction(opcode, offset, writer),
             OpCode::OpReturn
             | OpCode::OpPrint
             | OpCode::OpPop

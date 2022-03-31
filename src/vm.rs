@@ -87,6 +87,23 @@ impl VM {
                         unreachable!("OpGetGlobal has an index pointing to a string which is enforced int the compiler.");
                     }
                 }
+                OpCode::OpSetGlobal => {
+                    // Safety: OpSetGlobal requires a index. The index is written by the compiler
+                    //         into the chunk and the chunk ensures that it is written.
+                    let name = unsafe { self.read_constant() }.clone();
+                    if let Value::String(ref n) = name {
+                        let value = self.globals.get_mut(n);
+                        match value {
+                            Some(v) => *v = self.stack.last().unwrap().clone(),
+                            None => {
+                                self.runtime_error(format!("Undefined variable '{}'.", n).as_str());
+                                return Err(InterpretResult::RuntimeError);
+                            }
+                        }
+                    } else {
+                        unreachable!("OpSetGlobal has an index pointing to a string which is enforced int the compiler.");
+                    }
+                }
                 OpCode::OpNegate => {
                     match self
                         .stack

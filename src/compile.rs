@@ -183,13 +183,19 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
         self.consume(TokenType::RightParen, "Expected ')' after expression.");
     }
 
-    fn variable(&mut self) {
-        self.named_variable(self.previous.get_lexme_string());
+    fn variable(&mut self, can_assign: bool) {
+        self.named_variable(self.previous.get_lexme_string(), can_assign);
     }
 
-    fn named_variable(&mut self, name: String) {
+    fn named_variable(&mut self, name: String, can_assign: bool) {
         let index = self.identifier_constant(name);
-        self.emit_opcode(OpCode::OpGetGlobal);
+        if can_assign && self.matches(TokenType::Equal) {
+            self.expression();
+            self.emit_opcode(OpCode::OpSetGlobal);
+        } else {
+            self.emit_opcode(OpCode::OpGetGlobal);
+        }
+
         self.emit_index(index);
     }
 
@@ -220,8 +226,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
         self.advance();
         let tt = self.previous.get_token_type();
         let parse_rule = self.rules.get(tt);
+
+        let can_assign = precedence <= Precedence::Assignment;
         if let Some(ref prefix_rule) = parse_rule.get_prefix() {
-            prefix_rule(self);
+            prefix_rule(self, can_assign);
         } else {
             self.error("Expected expression.");
         }
@@ -238,7 +246,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
                 .get(self.previous.get_token_type())
                 .get_infix()
                 .unwrap();
-            infix_rule(self);
+            infix_rule(self, can_assign);
+        }
+
+        if can_assign && self.matches(TokenType::Equal) {
+            self.error("Invalid assignment target.");
         }
     }
 
@@ -396,7 +408,7 @@ impl std::fmt::Display for Precedence {
     }
 }
 
-type ParseFn<'a, I> = fn(compiler: &mut Compiler<'a, I>);
+type ParseFn<'a, I> = fn(compiler: &mut Compiler<'a, I>, can_assign: bool);
 
 struct ParseRule<'a, I: Iterator<Item = Token<'a>>> {
     prefix: Option<ParseFn<'a, I>>,
@@ -437,42 +449,42 @@ struct ParseRules<'a, I: Iterator<Item = Token<'a>>> {
 impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
     fn new() -> Self {
         let rules = ::enum_map::enum_map! {
-        TokenType::LeftParen    => ParseRule::new(Some(|c| {c.grouping()}), None, Precedence::None),
+        TokenType::LeftParen    => ParseRule::new(Some(|c, _| {c.grouping()}), None, Precedence::None),
             TokenType::RightParen   => ParseRule::new(None, None, Precedence::None),
             TokenType::LeftBrace    => ParseRule::new(None, None, Precedence::None),
             TokenType::RightBrace   => ParseRule::new(None, None, Precedence::None),
             TokenType::Comma        => ParseRule::new(None, None, Precedence::None),
             TokenType::Dot          => ParseRule::new(None, None, Precedence::None),
-            TokenType::Minus        => ParseRule::new(Some(|c| c.unary()), Some(|c| c.binary()), Precedence::Term),
-            TokenType::Plus         => ParseRule::new(None, Some(|c| c.binary()), Precedence::Term),
+            TokenType::Minus        => ParseRule::new(Some(|c, _| c.unary()), Some(|c, _| c.binary()), Precedence::Term),
+            TokenType::Plus         => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Term),
             TokenType::Semicolon    => ParseRule::new(None, None, Precedence::None),
-            TokenType::Slash        => ParseRule::new(None, Some(|c| c.binary()), Precedence::Factor),
-            TokenType::Star         => ParseRule::new(None, Some(|c| c.binary()), Precedence::Factor),
-            TokenType::Bang         => ParseRule::new(Some(|c| c.unary()), None, Precedence::None),
-            TokenType::BangEqual    => ParseRule::new(None, Some(|c| c.binary()), Precedence::Equality),
+            TokenType::Slash        => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Factor),
+            TokenType::Star         => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Factor),
+            TokenType::Bang         => ParseRule::new(Some(|c, _| c.unary()), None, Precedence::None),
+            TokenType::BangEqual    => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Equality),
             TokenType::Equal        => ParseRule::new(None, None, Precedence::None),
-            TokenType::EqualEqual   => ParseRule::new(None, Some(|c| c.binary()), Precedence::Equality),
-            TokenType::Greater      => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
-            TokenType::GreaterEqual => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
-            TokenType::Less         => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
-            TokenType::LessEqual    => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
-            TokenType::Identifier   => ParseRule::new(Some(|c| c.variable()), None, Precedence::None),
-            TokenType::String       => ParseRule::new(Some(|c| c.string()), None, Precedence::None),
-            TokenType::Number       => ParseRule::new(Some(|c| {c.number()}), None, Precedence::None),
+            TokenType::EqualEqual   => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Equality),
+            TokenType::Greater      => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Comparison),
+            TokenType::GreaterEqual => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Comparison),
+            TokenType::Less         => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Comparison),
+            TokenType::LessEqual    => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Comparison),
+            TokenType::Identifier   => ParseRule::new(Some(|c, can_assign | c.variable(can_assign)), None, Precedence::None),
+            TokenType::String       => ParseRule::new(Some(|c, _| c.string()), None, Precedence::None),
+            TokenType::Number       => ParseRule::new(Some(|c, _| {c.number()}), None, Precedence::None),
             TokenType::And          => ParseRule::new(None, None, Precedence::None),
             TokenType::Class        => ParseRule::new(None, None, Precedence::None),
             TokenType::Else         => ParseRule::new(None, None, Precedence::None),
-            TokenType::False        => ParseRule::new(Some(|c| c.literal()), None, Precedence::None),
+            TokenType::False        => ParseRule::new(Some(|c, _| c.literal()), None, Precedence::None),
             TokenType::Fun          => ParseRule::new(None, None, Precedence::None),
             TokenType::For          => ParseRule::new(None, None, Precedence::None),
             TokenType::If           => ParseRule::new(None, None, Precedence::None),
-            TokenType::Nil          => ParseRule::new(Some(|c| c.literal()), None, Precedence::None),
+            TokenType::Nil          => ParseRule::new(Some(|c, _| c.literal()), None, Precedence::None),
             TokenType::Or           => ParseRule::new(None, None, Precedence::None),
             TokenType::Print        => ParseRule::new(None, None, Precedence::None),
             TokenType::Return       => ParseRule::new(None, None, Precedence::None),
             TokenType::Super        => ParseRule::new(None, None, Precedence::None),
             TokenType::This         => ParseRule::new(None, None, Precedence::None),
-            TokenType::True         => ParseRule::new(Some(|c| c.literal()), None, Precedence::None),
+            TokenType::True         => ParseRule::new(Some(|c, _| c.literal()), None, Precedence::None),
             TokenType::Var          => ParseRule::new(None, None, Precedence::None),
             TokenType::While        => ParseRule::new(None, None, Precedence::None),
             TokenType::Error        => ParseRule::new(None, None, Precedence::None),
