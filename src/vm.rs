@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use crate::chunk::{Chunk, OpCode, Value};
-use crate::intern_string::SymbolTable;
+use crate::intern_string::{Symbol, SymbolTable};
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum InterpretResult {
@@ -12,6 +14,7 @@ pub struct VM {
     ip: usize,
     stack: Vec<Value>,
     symbol_table: SymbolTable,
+    globals: HashMap<Symbol, Value>,
 }
 
 impl VM {
@@ -21,6 +24,7 @@ impl VM {
             ip: 0,
             stack: Vec::new(),
             symbol_table,
+            globals: HashMap::new(),
         }
     }
 
@@ -48,6 +52,23 @@ impl VM {
                         .expect("Stack should never be empty when executing OpReturn.");
                     println!("{}", result);
                     return Ok(result);
+                }
+                OpCode::OpPrint => {
+                    println!("{}", self.stack.pop().unwrap());
+                }
+                OpCode::OpPop => {
+                    self.stack.pop();
+                }
+                OpCode::OpDefineGlobal => {
+                    // Safety: OpDefineGlobal requires a index. The index is written by the compiler
+                    //         into the chunk and the chunk ensures that it is written.
+                    let name = unsafe { self.read_constant() }.clone();
+                    if let Value::String(n) = name {
+                        let value = self.stack.pop().unwrap().clone();
+                        self.globals.insert(n, value);
+                    } else {
+                        unreachable!("OpDefineGlobal has an index pointing to a string which is enforced int the compiler.");
+                    }
                 }
                 OpCode::OpNegate => {
                     match self

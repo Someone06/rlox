@@ -37,8 +37,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
     }
 
     pub fn compile(mut self) -> Result<(Chunk, SymbolTable), ()> {
-        self.expression();
-        self.consume(TokenType::EOF, "Expected end of expression");
+        while !self.matches(TokenType::EOF) {
+            self.declaration();
+        }
+
         self.end_compile();
 
         #[cfg(debug_assertions)]
@@ -53,6 +55,94 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
 }
 
 impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
+    fn declaration(&mut self) {
+        if self.matches(TokenType::Var) {
+            self.var_declaration();
+        } else {
+            self.statement();
+        }
+
+        if self.panic_mode {
+            self.synchronize();
+        }
+    }
+
+    fn synchronize(&mut self) {
+        self.panic_mode = false;
+
+        while !self.check(TokenType::EOF) {
+            if self.previous.get_token_type() == TokenType::Semicolon {
+                return;
+            }
+
+            if matches!(
+                self.current.get_token_type(),
+                TokenType::Class
+                    | TokenType::Fun
+                    | TokenType::Var
+                    | TokenType::For
+                    | TokenType::If
+                    | TokenType::While
+                    | TokenType::Print
+                    | TokenType::Return
+            ) {
+                return;
+            }
+
+            self.advance();
+        }
+    }
+
+    fn statement(&mut self) {
+        if self.matches(TokenType::Print) {
+            self.print_statement();
+        } else {
+            self.expression_statement();
+        }
+    }
+
+    fn var_declaration(&mut self) {
+        let global = self.parse_variable("Expected variable name.");
+        if self.matches(TokenType::Equal) {
+            self.expression();
+        } else {
+            self.emit_opcode(OpCode::OpNil);
+        }
+
+        self.consume(
+            TokenType::Semicolon,
+            "Expected ';' after variable declaration.",
+        );
+        self.define_variable(global);
+    }
+
+    fn parse_variable(&mut self, error_message: &str) -> u8 {
+        self.consume(TokenType::Identifier, error_message);
+        self.identifier_constant(self.previous.get_lexme_string())
+    }
+
+    fn identifier_constant(&mut self, name: String) -> u8 {
+        let intern = self.symbol_table.intern(name);
+        self.make_constant(Value::String(intern))
+    }
+
+    fn define_variable(&mut self, global: u8) {
+        self.emit_opcode(OpCode::OpDefineGlobal);
+        self.emit_index(global);
+    }
+
+    fn print_statement(&mut self) {
+        self.expression();
+        self.consume(TokenType::Semicolon, "Expected ';' after value.");
+        self.emit_opcode(OpCode::OpPrint);
+    }
+
+    fn expression_statement(&mut self) {
+        self.expression();
+        self.consume(TokenType::Semicolon, "Expected ';' after expression.");
+        self.emit_opcode(OpCode::OpPop);
+    }
+
     fn expression(&mut self) {
         self.parse_precedence(Precedence::Assignment);
     }
@@ -180,11 +270,22 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
     }
 
     fn consume(&mut self, token_type: TokenType, message: &str) {
-        if self.current.get_token_type() == token_type {
-            self.advance();
-        } else {
+        if !self.matches(token_type) {
             self.error_at_current(message);
         }
+    }
+
+    fn matches(&mut self, token_type: TokenType) -> bool {
+        if self.check(token_type) {
+            self.advance();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn check(&self, token_type: TokenType) -> bool {
+        self.current.get_token_type() == token_type
     }
 
     fn advance(&mut self) {
