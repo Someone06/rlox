@@ -1,5 +1,7 @@
 use ::std::io::Write;
 
+use crate::intern_string::Symbol;
+
 /// This enum represents all opcodes, that is the instruction set of the virtual machine.
 /// We ensure that each opcode can be represented as a u8, to allow for a densely packed bytecode.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, ::enum_map::Enum)]
@@ -103,6 +105,7 @@ impl From<u8> for CodeUnit {
 pub enum Value {
     Bool(bool),
     Double(f64),
+    String(Symbol),
     Nil,
 }
 
@@ -117,6 +120,7 @@ impl std::fmt::Display for Value {
         let s = match &self {
             Value::Bool(b) => b.to_string(),
             Value::Double(f) => f.to_string(),
+            Value::String(s) => s.to_string(),
             Value::Nil => String::from("Nil"),
         };
 

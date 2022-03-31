@@ -1,4 +1,5 @@
 use crate::chunk::{Chunk, ChunkBuilder, OpCode, Value};
+use crate::intern_string::SymbolTable;
 use crate::tokens::{Token, TokenType};
 
 macro_rules! emit_opcodes {
@@ -15,6 +16,7 @@ pub struct Compiler<'a, I: Iterator<Item = Token<'a>>> {
     had_error: bool,
     panic_mode: bool,
     rules: ParseRules<'a, I>,
+    symbol_table: SymbolTable,
 }
 
 impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
@@ -27,13 +29,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
             had_error: false,
             panic_mode: false,
             rules: ParseRules::new(),
+            symbol_table: SymbolTable::new(),
         };
 
         compiler.advance();
         compiler
     }
 
-    pub fn compile(mut self) -> Result<Chunk, ()> {
+    pub fn compile(mut self) -> Result<(Chunk, SymbolTable), ()> {
         self.expression();
         self.consume(TokenType::EOF, "Expected end of expression");
         self.end_compile();
@@ -44,7 +47,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
         if self.had_error {
             Err(())
         } else {
-            Ok(self.chunk.build())
+            Ok((self.chunk.build(), self.symbol_table))
         }
     }
 }
@@ -106,6 +109,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
             TokenType::Nil => self.emit_opcode(OpCode::OpNil),
             _ => unreachable!(),
         }
+    }
+
+    fn string(&mut self) {
+        let intern = self.symbol_table.intern(self.previous.get_lexme_string());
+        self.emit_constant(Value::String(intern));
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) {
@@ -338,7 +346,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
             TokenType::Less         => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
             TokenType::LessEqual    => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
             TokenType::Identifier   => ParseRule::new(None, None, Precedence::None),
-            TokenType::String       => ParseRule::new(None, None, Precedence::None),
+            TokenType::String       => ParseRule::new(Some(|c| c.string()), None, Precedence::None),
             TokenType::Number       => ParseRule::new(Some(|c| {c.number()}), None, Precedence::None),
             TokenType::And          => ParseRule::new(None, None, Precedence::None),
             TokenType::Class        => ParseRule::new(None, None, Precedence::None),

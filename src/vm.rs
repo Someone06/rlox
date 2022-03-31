@@ -1,4 +1,5 @@
 use crate::chunk::{Chunk, OpCode, Value};
+use crate::intern_string::SymbolTable;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum InterpretResult {
@@ -10,14 +11,16 @@ pub struct VM {
     chunk: Chunk,
     ip: usize,
     stack: Vec<Value>,
+    symbol_table: SymbolTable,
 }
 
 impl VM {
-    pub fn new(chunk: Chunk) -> Self {
+    pub fn new(chunk: Chunk, symbol_table: SymbolTable) -> Self {
         VM {
             chunk,
             ip: 0,
             stack: Vec::new(),
+            symbol_table,
         }
     }
 
@@ -60,14 +63,25 @@ impl VM {
                     }
                 }
                 OpCode::OpAdd => {
-                    let function = |a, b| {
-                        if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
-                            Ok(Value::Double(f1 + f2))
-                        } else {
-                            Err(InterpretResult::RuntimeError)
-                        }
-                    };
-                    self.binary_double_op(function)?;
+                    let b = self
+                        .stack
+                        .pop()
+                        .expect("Expecting stack size at least 2 for binary op.");
+                    let a = self
+                        .stack
+                        .pop()
+                        .expect("Expecting stack size at least 2 for binary op.");
+
+                    if let (Value::Double(f1), Value::Double(f2)) = (a.clone(), b.clone()) {
+                        self.stack.push(Value::Double(f1 + f2));
+                    } else if let (Value::String(s1), Value::String(s2)) = (a, b) {
+                        let concat = format!("{}{}", s1, s2);
+                        let intern = self.symbol_table.intern(concat);
+                        self.stack.push(Value::String(intern));
+                    } else {
+                        self.runtime_error("Operands must be two numbers or two strings.");
+                        return Err(InterpretResult::RuntimeError);
+                    }
                 }
                 OpCode::OpSubtract => {
                     let function = |a, b| {
@@ -213,6 +227,7 @@ impl VM {
 #[cfg(test)]
 mod tests {
     use crate::chunk::{ChunkBuilder, OpCode, Value};
+    use crate::intern_string::SymbolTable;
     use crate::vm::VM;
 
     macro_rules! load_constant {
@@ -226,7 +241,7 @@ mod tests {
     macro_rules! check_result {
         ($builder:ident, $result: literal) => {{
             let chunk = $builder.build();
-            let mut vm = VM::new(chunk);
+            let mut vm = VM::new(chunk, SymbolTable::new());
             let result = vm.interpret().unwrap();
             match result {
                 Value::Double(float) => assert_eq!($result, float.round() as isize),

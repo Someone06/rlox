@@ -21,8 +21,8 @@ fn main() {
                 let chars = code.chars().collect::<Vec<char>>();
                 let scanner = Scanner::new(chars.as_slice());
                 let compiler = Compiler::new(scanner.parse());
-                if let Ok(chunk) = compiler.compile() {
-                    let mut vm = VM::new(chunk);
+                if let Ok((chunk, symbol_table)) = compiler.compile() {
+                    let mut vm = VM::new(chunk, symbol_table);
                     if let Ok(value) = vm.interpret() {
                         println!("Result: {}", value);
                     } else {
