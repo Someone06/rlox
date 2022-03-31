@@ -183,6 +183,16 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
         self.consume(TokenType::RightParen, "Expected ')' after expression.");
     }
 
+    fn variable(&mut self) {
+        self.named_variable(self.previous.get_lexme_string());
+    }
+
+    fn named_variable(&mut self, name: String) {
+        let index = self.identifier_constant(name);
+        self.emit_opcode(OpCode::OpGetGlobal);
+        self.emit_index(index);
+    }
+
     fn number(&mut self) {
         let value = self
             .previous
@@ -446,7 +456,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
             TokenType::GreaterEqual => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
             TokenType::Less         => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
             TokenType::LessEqual    => ParseRule::new(None, Some(|c| c.binary()), Precedence::Comparison),
-            TokenType::Identifier   => ParseRule::new(None, None, Precedence::None),
+            TokenType::Identifier   => ParseRule::new(Some(|c| c.variable()), None, Precedence::None),
             TokenType::String       => ParseRule::new(Some(|c| c.string()), None, Precedence::None),
             TokenType::Number       => ParseRule::new(Some(|c| {c.number()}), None, Precedence::None),
             TokenType::And          => ParseRule::new(None, None, Precedence::None),
