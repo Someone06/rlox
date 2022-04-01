@@ -104,6 +104,20 @@ impl VM {
                         unreachable!("OpSetGlobal has an index pointing to a string which is enforced int the compiler.");
                     }
                 }
+                OpCode::OpGetLocal => {
+                    // Safety: OpGetLocal requires a index. The index is written by the compiler
+                    //         into the chunk and the chunk ensures that it is written.
+                    let slot = unsafe { self.read_index() };
+                    let value = self.stack[slot as usize].clone();
+                    self.stack.push(value);
+                }
+                OpCode::OpSetLocal => {
+                    // Safety: OpSetLocal requires a index. The index is written by the compiler
+                    //         into the chunk and the chunk ensures that it is written.
+                    let slot = unsafe { self.read_index() };
+                    let value = self.stack.last().unwrap().clone();
+                    self.stack[slot as usize] = value;
+                }
                 OpCode::OpNegate => {
                     match self
                         .stack
@@ -245,11 +259,16 @@ impl VM {
 
     /// Safety: It is only safe to call this function when self.ip is the index of an index in
     /// self.chunk.
-    unsafe fn read_constant(&mut self) -> &Value {
+    unsafe fn read_index(&mut self) -> u8 {
         let code_unit = self.chunk.get_code_unit(self.ip);
         self.ip += 1;
+        code_unit.get_index()
+    }
 
-        let index = code_unit.get_index();
+    /// Safety: It is only safe to call this function when self.ip is the index of an index in
+    /// self.chunk.
+    unsafe fn read_constant(&mut self) -> &Value {
+        let index = self.read_index();
         self.chunk.get_value_at_index(index)
     }
 

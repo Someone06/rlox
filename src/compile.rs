@@ -156,13 +156,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         if self.compiler.get_scope_depth() == 0 {
             self.emit_opcode(OpCode::OpDefineGlobal);
             self.emit_index(global);
+        } else {
+            self.compiler.mark_local_initialized();
         }
     }
 
     fn add_local(&mut self, name: Token<'a>) {
         if self.compiler.get_local_count() < (u8::MAX as usize) {
-            let depth = self.compiler.get_scope_depth();
-            let local = Local::new(name, depth as isize);
+            let local = Local::new(name, -1);
             self.compiler.push_local(local);
         } else {
             self.error("Too many local variables in function.");
@@ -240,19 +241,30 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn variable(&mut self, can_assign: bool) {
-        self.named_variable(self.previous.get_lexme_string(), can_assign);
+        self.named_variable(self.previous.clone(), can_assign);
     }
 
-    fn named_variable(&mut self, name: String, can_assign: bool) {
-        let index = self.identifier_constant(name);
-        if can_assign && self.matches(TokenType::Equal) {
-            self.expression();
-            self.emit_opcode(OpCode::OpSetGlobal);
-        } else {
-            self.emit_opcode(OpCode::OpGetGlobal);
+    fn named_variable(&mut self, name: Token<'a>, can_assign: bool) {
+        let (mut arg, uninitialized) = self.compiler.resolve(&name);
+        if uninitialized {
+            self.error("Can't read local variable in its own initializer.");
         }
 
-        self.emit_index(index);
+        let (get, set) = if arg != -1 {
+            (OpCode::OpGetLocal, OpCode::OpSetLocal)
+        } else {
+            arg = self.identifier_constant(name.get_lexme_string()) as isize;
+            (OpCode::OpGetGlobal, OpCode::OpSetGlobal)
+        };
+
+        if can_assign && self.matches(TokenType::Equal) {
+            self.expression();
+            self.emit_opcode(set);
+        } else {
+            self.emit_opcode(get);
+        }
+
+        self.emit_index(arg as u8);
     }
 
     fn number(&mut self) {
@@ -588,6 +600,13 @@ impl<'a> Compiler<'a> {
         self.locals.len()
     }
 
+    fn mark_local_initialized(&mut self) {
+        self.locals
+            .last_mut()
+            .unwrap()
+            .set_depth(self.scope_depth as isize);
+    }
+
     fn check_variable_declared_in_current_scope(&self, name: &Token<'a>) -> bool {
         self.locals
             .iter()
@@ -610,6 +629,15 @@ impl<'a> Compiler<'a> {
 
         count
     }
+
+    fn resolve(&self, name: &Token<'a>) -> (isize, bool) {
+        self.locals
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, l)| l.get_name().get_lexme() == name.get_lexme())
+            .map_or((-1, false), |(i, l)| (i as isize, l.get_depth() == -1))
+    }
 }
 
 struct Local<'a> {
@@ -618,13 +646,19 @@ struct Local<'a> {
 }
 
 impl<'a> Local<'a> {
-    pub fn new(name: Token<'a>, depth: isize) -> Self {
+    fn new(name: Token<'a>, depth: isize) -> Self {
         Local { name, depth }
     }
-    pub fn get_name(&self) -> &Token<'a> {
+
+    fn get_name(&self) -> &Token<'a> {
         &self.name
     }
-    pub fn get_depth(&self) -> isize {
+
+    fn get_depth(&self) -> isize {
         self.depth
+    }
+
+    fn set_depth(&mut self, depth: isize) {
+        self.depth = depth;
     }
 }

@@ -26,6 +26,8 @@ pub enum OpCode {
     OpDefineGlobal,
     OpGetGlobal,
     OpSetGlobal,
+    OpGetLocal,
+    OpSetLocal,
 }
 
 struct IndexesPerOpCode {
@@ -54,6 +56,8 @@ impl IndexesPerOpCode {
             OpCode::OpDefineGlobal => 1,
             OpCode::OpGetGlobal => 1,
             OpCode::OpSetGlobal => 1,
+            OpCode::OpGetLocal => 1,
+            OpCode::OpSetLocal => 1,
         };
 
         IndexesPerOpCode { map }
@@ -269,6 +273,9 @@ impl Chunk {
             | OpCode::OpDefineGlobal
             | OpCode::OpGetGlobal
             | OpCode::OpSetGlobal => self.constant_instruction(opcode, offset, writer),
+            OpCode::OpGetLocal | OpCode::OpSetLocal => {
+                self.byte_instruction(opcode, offset, writer)
+            }
             OpCode::OpReturn
             | OpCode::OpPrint
             | OpCode::OpPop
@@ -285,6 +292,21 @@ impl Chunk {
             | OpCode::OpFalse
             | OpCode::OpNil => self.simple_instruction(opcode, offset, writer),
         }
+    }
+
+    fn byte_instruction(
+        &self,
+        opcode: OpCode,
+        offset: usize,
+        writer: &mut impl Write,
+    ) -> Result<usize, std::io::Error> {
+        let code_unit = self.code[offset + 1];
+
+        // Safety: We know that the instruction at offset is a byte instruction.
+        // That instruction requires exactly one index, so the code unit at offset + 1 has to be an
+        // index.
+        let index = unsafe { code_unit.get_index() };
+        writeln!(writer, "{:-16} {:4}", opcode, index).map(|_| offset + 2)
     }
 
     fn constant_instruction(
