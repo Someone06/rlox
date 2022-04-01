@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use crate::compile::Compiler;
+use crate::compile::Parser;
 use crate::scanner::Scanner;
 use crate::vm::VM;
 
@@ -20,7 +20,7 @@ fn main() {
             if file.read_to_string(&mut code).is_ok() {
                 let chars = code.chars().collect::<Vec<char>>();
                 let scanner = Scanner::new(chars.as_slice());
-                let compiler = Compiler::new(scanner.parse());
+                let compiler = Parser::new(scanner.parse());
                 if let Ok((chunk, symbol_table)) = compiler.compile() {
                     let mut vm = VM::new(chunk, symbol_table);
                     if let Ok(value) = vm.interpret() {

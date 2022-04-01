@@ -8,7 +8,7 @@ macro_rules! emit_opcodes {
         }};
 }
 
-pub struct Compiler<'a, I: Iterator<Item = Token<'a>>> {
+pub struct Parser<'a, I: Iterator<Item = Token<'a>>> {
     source: I,
     current: Token<'a>,
     previous: Token<'a>,
@@ -19,9 +19,9 @@ pub struct Compiler<'a, I: Iterator<Item = Token<'a>>> {
     symbol_table: SymbolTable,
 }
 
-impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
+impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     pub fn new(source: I) -> Self {
-        let mut compiler = Compiler {
+        let mut compiler = Parser {
             source,
             current: Token::new(TokenType::Error, &[], 0),
             previous: Token::new(TokenType::Error, &[], 0),
@@ -54,7 +54,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
     }
 }
 
-impl<'a, I: Iterator<Item = Token<'a>>> Compiler<'a, I> {
+impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn declaration(&mut self) {
         if self.matches(TokenType::Var) {
             self.var_declaration();
@@ -408,7 +408,7 @@ impl std::fmt::Display for Precedence {
     }
 }
 
-type ParseFn<'a, I> = fn(compiler: &mut Compiler<'a, I>, can_assign: bool);
+type ParseFn<'a, I> = fn(compiler: &mut Parser<'a, I>, can_assign: bool);
 
 struct ParseRule<'a, I: Iterator<Item = Token<'a>>> {
     prefix: Option<ParseFn<'a, I>>,
