@@ -57,7 +57,9 @@ impl std::fmt::Display for TokenType {
         write!(f, "{:?}", self)
     }
 }
-
+// Could derive Copy as well, but I usually don't want to copy token, so I still require copies to
+// be made explicitly by calling clone().
+#[derive(Clone)]
 pub struct Token<'a> {
     token_type: TokenType,
     lexme: &'a [char],

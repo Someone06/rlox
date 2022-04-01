@@ -17,11 +17,12 @@ pub struct Parser<'a, I: Iterator<Item = Token<'a>>> {
     panic_mode: bool,
     rules: ParseRules<'a, I>,
     symbol_table: SymbolTable,
+    compiler: Compiler<'a>,
 }
 
 impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     pub fn new(source: I) -> Self {
-        let mut compiler = Parser {
+        let mut parser = Parser {
             source,
             current: Token::new(TokenType::Error, &[], 0),
             previous: Token::new(TokenType::Error, &[], 0),
@@ -30,10 +31,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             panic_mode: false,
             rules: ParseRules::new(),
             symbol_table: SymbolTable::new(),
+            compiler: Compiler::new(),
         };
 
-        compiler.advance();
-        compiler
+        parser.advance();
+        parser
     }
 
     pub fn compile(mut self) -> Result<(Chunk, SymbolTable), ()> {
@@ -96,6 +98,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn statement(&mut self) {
         if self.matches(TokenType::Print) {
             self.print_statement();
+        } else if self.matches(TokenType::LeftBrace) {
+            self.begin_scope();
+            self.block();
+            self.end_scope();
         } else {
             self.expression_statement();
         }
@@ -118,7 +124,13 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn parse_variable(&mut self, error_message: &str) -> u8 {
         self.consume(TokenType::Identifier, error_message);
-        self.identifier_constant(self.previous.get_lexme_string())
+
+        self.declare_variable();
+        if self.compiler.get_scope_depth() > 0 {
+            0
+        } else {
+            self.identifier_constant(self.previous.get_lexme_string())
+        }
     }
 
     fn identifier_constant(&mut self, name: String) -> u8 {
@@ -126,15 +138,59 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.make_constant(Value::String(intern))
     }
 
+    fn declare_variable(&mut self) {
+        if self.compiler.get_scope_depth() > 0 {
+            let name = self.previous.clone();
+            if !self
+                .compiler
+                .check_variable_declared_in_current_scope(&name)
+            {
+                self.add_local(name);
+            } else {
+                self.error("Already declared a variable wiht this name in this scope.");
+            }
+        }
+    }
+
     fn define_variable(&mut self, global: u8) {
-        self.emit_opcode(OpCode::OpDefineGlobal);
-        self.emit_index(global);
+        if self.compiler.get_scope_depth() == 0 {
+            self.emit_opcode(OpCode::OpDefineGlobal);
+            self.emit_index(global);
+        }
+    }
+
+    fn add_local(&mut self, name: Token<'a>) {
+        if self.compiler.get_local_count() < (u8::MAX as usize) {
+            let depth = self.compiler.get_scope_depth();
+            let local = Local::new(name, depth as isize);
+            self.compiler.push_local(local);
+        } else {
+            self.error("Too many local variables in function.");
+        }
     }
 
     fn print_statement(&mut self) {
         self.expression();
         self.consume(TokenType::Semicolon, "Expected ';' after value.");
         self.emit_opcode(OpCode::OpPrint);
+    }
+
+    fn block(&mut self) {
+        while !self.check(TokenType::RightBrace) && !self.check(TokenType::EOF) {
+            self.declaration();
+        }
+
+        self.consume(TokenType::RightBrace, "Expected '}’ after block.");
+    }
+
+    fn begin_scope(&mut self) {
+        self.compiler.inc_scope_depth();
+    }
+
+    fn end_scope(&mut self) {
+        self.compiler.dec_scope_depth();
+        let remove_count = self.compiler.remove_out_of_scope_locals();
+        (0..remove_count).for_each(|_| self.emit_opcode(OpCode::OpPop));
     }
 
     fn expression_statement(&mut self) {
@@ -496,5 +552,79 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
 
     fn get(&self, token_type: TokenType) -> &ParseRule<'a, I> {
         &self.rules[token_type]
+    }
+}
+
+struct Compiler<'a> {
+    locals: Vec<Local<'a>>,
+    scope_depth: usize,
+}
+
+impl<'a> Compiler<'a> {
+    fn new() -> Self {
+        Compiler {
+            locals: Vec::new(),
+            scope_depth: 0,
+        }
+    }
+
+    fn inc_scope_depth(&mut self) {
+        self.scope_depth += 1;
+    }
+
+    fn dec_scope_depth(&mut self) {
+        self.scope_depth -= 1;
+    }
+
+    fn get_scope_depth(&self) -> usize {
+        self.scope_depth
+    }
+
+    fn push_local(&mut self, local: Local<'a>) {
+        self.locals.push(local);
+    }
+
+    fn get_local_count(&self) -> usize {
+        self.locals.len()
+    }
+
+    fn check_variable_declared_in_current_scope(&self, name: &Token<'a>) -> bool {
+        self.locals
+            .iter()
+            .rev()
+            .take_while(|l| l.get_depth() != -1 && l.get_depth() < self.scope_depth as isize)
+            .any(|l| name.get_lexme() == l.get_name().get_lexme())
+    }
+
+    fn remove_out_of_scope_locals(&mut self) -> usize {
+        let mut count: usize = 0;
+
+        while self
+            .locals
+            .last()
+            .map_or(false, |l| l.get_depth() > self.scope_depth as isize)
+        {
+            self.locals.pop();
+            count += 1;
+        }
+
+        count
+    }
+}
+
+struct Local<'a> {
+    name: Token<'a>,
+    depth: isize,
+}
+
+impl<'a> Local<'a> {
+    pub fn new(name: Token<'a>, depth: isize) -> Self {
+        Local { name, depth }
+    }
+    pub fn get_name(&self) -> &Token<'a> {
+        &self.name
+    }
+    pub fn get_depth(&self) -> isize {
+        self.depth
     }
 }
