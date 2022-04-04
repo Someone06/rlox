@@ -1,4 +1,7 @@
 use ::std::io::Write;
+use std::cell::RefCell;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use crate::intern_string::Symbol;
 
@@ -224,12 +227,13 @@ impl Chunk {
         }
     }
 
-    fn write_opcode(&mut self, opcode: OpCode, line: u32) {
+    fn write_opcode(&mut self, opcode: OpCode, line: u32) -> usize {
         self.code.push(CodeUnit::from(opcode));
         self.lines.push(line);
+        self.code.len() - 1
     }
 
-    fn write_index(&mut self, index: u8) {
+    fn write_index(&mut self, index: u8) -> usize {
         self.code.push(CodeUnit::from(index));
         self.lines.push(
             *self
@@ -237,6 +241,15 @@ impl Chunk {
                 .last()
                 .expect("First code unit cannot be an index."),
         );
+
+        self.code.len() - 1
+    }
+
+    // Unconditionally override the code unit at the given position with the given index.
+    // Safety: Position needs to point to an index and the given index must be valid in that
+    // position.
+    unsafe fn write_index_at(&mut self, index: u8, position: usize) {
+        self.code[position] = CodeUnit::from(index);
     }
 
     fn add_constant(&mut self, value: Value) -> usize {
@@ -366,29 +379,32 @@ impl Chunk {
 
 /// ChunkBuilder is used to incrementally build a Chunk.
 /// It ensures that the Chunk is in a valid state once it is build.
-pub struct ChunkBuilder {
+pub struct ChunkBuilderInner {
     chunk: Chunk,
     required_indexes: u8,
     max_index: Option<usize>,
     constant_index: Option<usize>,
     indexes_per_op: IndexesPerOpCode,
+    patch_count: usize,
 }
 
-impl ChunkBuilder {
+impl ChunkBuilderInner {
     pub fn new() -> Self {
-        ChunkBuilder {
+        ChunkBuilderInner {
             chunk: Chunk::new(),
             required_indexes: 0,
             max_index: None,
             constant_index: None,
             indexes_per_op: IndexesPerOpCode::new(),
+            patch_count: 0,
         }
     }
 
-    pub fn write_opcode(&mut self, opcode: OpCode, line: u32) {
+    /// Returns the index of the opcode that has just been written.
+    pub fn write_opcode(&mut self, opcode: OpCode, line: u32) -> usize {
         if self.required_indexes == 0 {
-            self.chunk.write_opcode(opcode, line);
             self.required_indexes = self.indexes_per_op.get(opcode);
+            self.chunk.write_opcode(opcode, line)
         } else {
             panic!("Requiring an index next.");
         }
@@ -415,11 +431,16 @@ impl ChunkBuilder {
     }
 
     pub fn build(mut self) -> Chunk {
-        if self.required_indexes == 0 && self.max_index == self.constant_index {
+        if self.required_indexes == 0
+            && self.max_index == self.constant_index
+            && self.patch_count == 0
+        {
             self.chunk.finish();
             self.chunk
         } else if self.required_indexes != 0 {
             panic!("Still requiring an index.");
+        } else if self.patch_count != 0 {
+            panic!("There are patches that still need to be applied.");
         } else {
             panic!("Did not get the right amount of constants.");
         }
@@ -429,6 +450,92 @@ impl ChunkBuilder {
     /// Name is the name of this chunk.
     pub fn print_disassemble(&self, name: &str) -> std::io::Result<()> {
         self.chunk.print_disassemble(name)
+    }
+}
+
+pub struct Patch {
+    builder: Rc<RefCell<ChunkBuilderInner>>,
+    location: usize,
+}
+
+/// A patch represents an position in code, which cannot be determined at the time the position
+/// needs to be written. In that case a patch can be created which let's the user write the position
+/// once the user knows it later.
+impl Patch {
+    fn new(builder: Rc<RefCell<ChunkBuilderInner>>, location: usize) -> Self {
+        Patch { builder, location }
+    }
+
+    /// Writes the position to the location in the code for which the Patch has been created.
+    /// Safety:
+    ///     The user has to make sure that the position is valid for the given instruction.
+    ///     That is the position has to point to a valid opcode in the code stream.
+    pub unsafe fn apply(self, position: u16) {
+        let high = ((position & 0xff00u16) >> 8) as u8;
+        let low = (position & 0x00ffu16) as u8;
+        let mut builder = self.builder.deref().borrow_mut();
+        builder.chunk.write_index_at(high, self.location);
+        builder.chunk.write_index_at(low, self.location + 1);
+        builder.patch_count -= 1;
+    }
+
+    /// Returns the location of the this patch, that is the position in code at which the patch need
+    /// to be applied.
+    pub fn get_own_index(&self) -> usize {
+        self.location
+    }
+}
+
+pub struct ChunkBuilder {
+    builder: Rc<RefCell<ChunkBuilderInner>>,
+}
+
+impl ChunkBuilder {
+    pub fn new() -> Self {
+        ChunkBuilder {
+            builder: Rc::new(RefCell::new(ChunkBuilderInner::new())),
+        }
+    }
+
+    /// Returns the index of the opcode that has just been written.
+    pub fn write_opcode(&mut self, opcode: OpCode, line: u32) -> usize {
+        self.builder.deref().borrow_mut().write_opcode(opcode, line)
+    }
+
+    // In case we will support > 255 constants, make sure to take a larger index here and break it
+    // up into multiple u8 which can be written individually.
+    pub fn write_index(&mut self, index: u8) {
+        self.builder.deref().borrow_mut().write_index(index)
+    }
+
+    pub fn write_patch(&mut self) -> Patch {
+        let mut builder = self.builder.deref().borrow_mut();
+        if builder.required_indexes != 0 {
+            let location = builder.chunk.write_index(u8::MAX);
+            builder.chunk.write_index(u8::MAX);
+            builder.required_indexes -= 2;
+            builder.patch_count += 1;
+            Patch::new(Rc::clone(&self.builder), location)
+        } else {
+            panic!("Requiring an opcode next.")
+        }
+    }
+
+    pub fn add_constant(&mut self, value: Value) -> usize {
+        self.builder.deref().borrow_mut().add_constant(value)
+    }
+
+    pub fn build(self) -> Chunk {
+        self.builder
+            .deref()
+            .replace(ChunkBuilderInner::new())
+            .build()
+    }
+
+    /// Writes a disassemble of the chunk that's been build so far to stdout.
+    /// Name is the name of this chunk.
+    pub fn print_disassemble(&self, name: &str) -> std::io::Result<()> {
+        self.builder.deref().borrow().print_disassemble(name)
     }
 }
 
@@ -531,6 +638,26 @@ mod tests {
         chunk_builder.write_index(0);
         chunk_builder.add_constant(Value::Double(0.0));
         chunk_builder.add_constant(Value::Double(1.0));
+        let _ = chunk_builder.build();
+    }
+
+    #[test]
+    fn patch() {
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_opcode(OpCode::OpJump, 0);
+        let patch = chunk_builder.write_patch();
+        chunk_builder.write_opcode(OpCode::OpReturn, 1);
+        unsafe { patch.apply(0u16) };
+        let _ = chunk_builder.build();
+    }
+
+    #[test]
+    #[should_panic]
+    fn missing_patch() {
+        let mut chunk_builder = ChunkBuilder::new();
+        chunk_builder.write_opcode(OpCode::OpJump, 0);
+        let _ = chunk_builder.write_patch();
+        chunk_builder.write_opcode(OpCode::OpReturn, 1);
         let _ = chunk_builder.build();
     }
 }
