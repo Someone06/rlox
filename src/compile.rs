@@ -326,6 +326,22 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.emit_constant(Value::String(intern));
     }
 
+    fn and(&mut self) {
+        let end_jump = self.emit_jump(OpCode::OpJumpIfFalse);
+        self.emit_opcode(OpCode::OpPop);
+        self.parse_precedence(Precedence::And);
+        self.patch_jump(end_jump);
+    }
+
+    fn or(&mut self) {
+        let else_jump = self.emit_jump(OpCode::OpJumpIfFalse);
+        let end_jump = self.emit_jump(OpCode::OpJump);
+        self.patch_jump(else_jump);
+        self.emit_opcode(OpCode::OpPop);
+        self.parse_precedence(Precedence::Or);
+        self.patch_jump(end_jump);
+    }
+
     fn parse_precedence(&mut self, precedence: Precedence) {
         self.advance();
         let tt = self.previous.get_token_type();
@@ -581,7 +597,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
             TokenType::Identifier   => ParseRule::new(Some(|c, can_assign | c.variable(can_assign)), None, Precedence::None),
             TokenType::String       => ParseRule::new(Some(|c, _| c.string()), None, Precedence::None),
             TokenType::Number       => ParseRule::new(Some(|c, _| {c.number()}), None, Precedence::None),
-            TokenType::And          => ParseRule::new(None, None, Precedence::None),
+            TokenType::And          => ParseRule::new(None, Some(|c, _| c.and()), Precedence::And),
             TokenType::Class        => ParseRule::new(None, None, Precedence::None),
             TokenType::Else         => ParseRule::new(None, None, Precedence::None),
             TokenType::False        => ParseRule::new(Some(|c, _| c.literal()), None, Precedence::None),
@@ -589,7 +605,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
             TokenType::For          => ParseRule::new(None, None, Precedence::None),
             TokenType::If           => ParseRule::new(None, None, Precedence::None),
             TokenType::Nil          => ParseRule::new(Some(|c, _| c.literal()), None, Precedence::None),
-            TokenType::Or           => ParseRule::new(None, None, Precedence::None),
+            TokenType::Or           => ParseRule::new(None, Some(|c, _| c.or()), Precedence::Or),
             TokenType::Print        => ParseRule::new(None, None, Precedence::None),
             TokenType::Return       => ParseRule::new(None, None, Precedence::None),
             TokenType::Super        => ParseRule::new(None, None, Precedence::None),
