@@ -1,5 +1,4 @@
 use ::std::io::Write;
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -34,6 +33,7 @@ pub enum OpCode {
     OpSetLocal,
     OpJump,
     OpJumpIfFalse,
+    OpLoop,
 }
 
 struct IndexesPerOpCode {
@@ -66,6 +66,7 @@ impl IndexesPerOpCode {
             OpCode::OpSetLocal => 1,
             OpCode::OpJump => 2,
             OpCode::OpJumpIfFalse => 2,
+            OpCode::OpLoop => 2,
         };
 
         IndexesPerOpCode { map }
@@ -257,7 +258,7 @@ impl Chunk {
         self.constants.push(value);
         self.constants.len() - 1
     }
-    
+
     fn len(&self) -> usize {
         self.code.len()
     }
@@ -317,6 +318,7 @@ impl Chunk {
             OpCode::OpJump | OpCode::OpJumpIfFalse => {
                 self.jump_instruction(opcode, offset, 1, writer)
             }
+            OpCode::OpLoop => self.jump_instruction(opcode, offset, -1, writer),
         }
     }
 
@@ -355,7 +357,7 @@ impl Chunk {
         &self,
         opcode: OpCode,
         offset: usize,
-        sign: usize,
+        sign: isize,
         writer: &mut impl Write,
     ) -> Result<usize, std::io::Error> {
         let code_unit_high = self.code[offset + 1];
@@ -368,7 +370,7 @@ impl Chunk {
         let low = unsafe { code_unit_low.get_index() };
 
         let jump = ((high as u16) << 8) + (low as u16);
-        let dest = offset + 3 + (sign * jump as usize);
+        let dest = (offset as isize + (sign * (jump as isize)) + 3) as usize;
         writeln!(writer, "{:-16} {:4} -> {}", opcode, offset, dest).map(|_| offset + 3)
     }
 
@@ -529,7 +531,7 @@ impl ChunkBuilder {
     pub fn add_constant(&mut self, value: Value) -> usize {
         self.builder.deref().borrow_mut().add_constant(value)
     }
-    
+
     pub fn len(&self) -> usize {
         self.builder.deref().borrow().chunk.len()
     }

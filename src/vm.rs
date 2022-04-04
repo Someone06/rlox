@@ -244,6 +244,14 @@ impl VM {
                         self.ip += offset as usize;
                     }
                 }
+                OpCode::OpLoop => {
+                    // Safety: We know that OpLoop takes two arguments to which self.ip
+                    //         points, and it is incremented by two after reading this opcode.
+                    //         The offset has been calculated in the compiler s.t. self.ip
+                    //         points to an opcode after decrementing it by offset.
+                    let offset = unsafe { self.read_short() };
+                    self.ip -= offset as usize;
+                }
             }
         }
     }

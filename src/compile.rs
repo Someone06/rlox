@@ -100,6 +100,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             self.print_statement();
         } else if self.matches(TokenType::If) {
             self.if_statement();
+        } else if self.matches(TokenType::While) {
+            self.while_statement();
         } else if self.matches(TokenType::LeftBrace) {
             self.begin_scope();
             self.block();
@@ -126,6 +128,20 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
 
         self.patch_jump(else_branch);
+    }
+
+    fn while_statement(&mut self) {
+        let loop_start = self.chunk.len();
+        self.consume(TokenType::LeftParen, "Expected '(' after 'while'.");
+        self.expression();
+        self.consume(TokenType::RightParen, "Expected ')' after condition.");
+
+        let exit_jump = self.emit_jump(OpCode::OpJumpIfFalse);
+        self.emit_opcode(OpCode::OpPop);
+        self.statement();
+        self.emit_loop(loop_start);
+        self.patch_jump(exit_jump);
+        self.emit_opcode(OpCode::OpPop);
     }
 
     fn patch_jump(&mut self, patch: Patch) {
@@ -411,6 +427,23 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         assert!(matches!(opcode, OpCode::OpJump | OpCode::OpJumpIfFalse));
         self.emit_opcode(opcode);
         self.current_chunk().write_patch()
+    }
+
+    fn emit_loop(&mut self, loop_start: usize) {
+        self.emit_opcode(OpCode::OpLoop);
+
+        let offset = self.current_chunk().len() - loop_start + 2;
+
+        if offset > u16::MAX as usize {
+            self.error("Loop body too large.");
+            self.emit_index(0);
+            self.emit_index(0);
+        } else {
+            let high = ((offset & 0xff00) >> 8) as u8;
+            let low = (offset & 0x00ff) as u8;
+            self.emit_index(high);
+            self.emit_index(low);
+        }
     }
 
     fn current_chunk(&mut self) -> &mut ChunkBuilder {
