@@ -1,4 +1,4 @@
-use crate::chunk::{Chunk, ChunkBuilder, OpCode, Value};
+use crate::chunk::{Chunk, ChunkBuilder, OpCode, Patch, Value};
 use crate::intern_string::SymbolTable;
 use crate::tokens::{Token, TokenType};
 
@@ -98,12 +98,48 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn statement(&mut self) {
         if self.matches(TokenType::Print) {
             self.print_statement();
+        } else if self.matches(TokenType::If) {
+            self.if_statement();
         } else if self.matches(TokenType::LeftBrace) {
             self.begin_scope();
             self.block();
             self.end_scope();
         } else {
             self.expression_statement();
+        }
+    }
+
+    fn if_statement(&mut self) {
+        self.consume(TokenType::LeftParen, "Expected '(' after 'if'.");
+        self.expression();
+        self.consume(TokenType::RightParen, "Expected ')' after condition.");
+
+        let then_branch = self.emit_jump(OpCode::OpJumpIfFalse);
+        self.emit_opcode(OpCode::OpPop);
+        self.statement();
+        let else_branch = self.emit_jump(OpCode::OpJump);
+        self.patch_jump(then_branch);
+        self.emit_opcode(OpCode::OpPop);
+
+        if self.matches(TokenType::Else) {
+            self.statement();
+        }
+
+        self.patch_jump(else_branch);
+    }
+
+    fn patch_jump(&mut self, patch: Patch) {
+        let distance = self.chunk.len() - patch.get_own_index() - 2;
+
+        if distance > u16::MAX as usize {
+            self.error("Too much code to jump over.");
+            // Safety: There is an error and the resulting chunk will not be valid code and thus not
+            //   be executed. So just writing 0 is fine.
+            unsafe { patch.apply(0) };
+        } else {
+            // Safety: Distance points to the current position which always is an opcode when this
+            // function is called.
+            unsafe { patch.apply(distance as u16) }
         }
     }
 
@@ -353,6 +389,12 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn emit_index(&mut self, index: u8) {
         self.current_chunk().write_index(index);
+    }
+
+    fn emit_jump(&mut self, opcode: OpCode) -> Patch {
+        assert!(matches!(opcode, OpCode::OpJump | OpCode::OpJumpIfFalse));
+        self.emit_opcode(opcode);
+        self.current_chunk().write_patch()
     }
 
     fn current_chunk(&mut self) -> &mut ChunkBuilder {

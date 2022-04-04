@@ -225,7 +225,25 @@ impl VM {
                 OpCode::OpFalse => self.stack.push(Value::Bool(false)),
                 OpCode::OpNil => self.stack.push(Value::Nil),
 
-                OpCode::OpJump | OpCode::OpJumpIfFalse => todo!(),
+                OpCode::OpJump => {
+                    // Safety: We know that OpJump takes two arguments to which self.ip points, and
+                    //         it is incremented by two after reading this opcode. The offset has
+                    //         been calculated in the compiler s.t. self.ip points to an opcode
+                    //         after increasing it by offset.
+                    let offset = unsafe { self.read_short() };
+                    self.ip += offset as usize;
+                }
+                OpCode::OpJumpIfFalse => {
+                    // Safety: We know that OpJumpIfFalse takes two arguments to which self.ip
+                    //         points, and it is incremented by two after reading this opcode.
+                    //         If the current value is true-thy ip just points to the next opcode.
+                    //         Else the offset has been calculated in the compiler s.t. self.ip
+                    //         points to an opcode after increasing it by offset.
+                    let offset = unsafe { self.read_short() };
+                    if self.stack.last().unwrap().is_falsey() {
+                        self.ip += offset as usize;
+                    }
+                }
             }
         }
     }
@@ -265,6 +283,18 @@ impl VM {
         let code_unit = self.chunk.get_code_unit(self.ip);
         self.ip += 1;
         code_unit.get_index()
+    }
+
+    /// Safety: It is only safe to call this function when self.ip is the index of an short value
+    /// consisting of two consecutive indexes in self.chunk.
+    unsafe fn read_short(&mut self) -> u16 {
+        let code_unit_high = self.chunk.get_code_unit(self.ip);
+        let code_unit_low = self.chunk.get_code_unit(self.ip + 1);
+        self.ip += 2;
+
+        let high = code_unit_high.get_index();
+        let low = code_unit_low.get_index();
+        ((high as u16) << 8) + (low as u16)
     }
 
     /// Safety: It is only safe to call this function when self.ip is the index of an index in

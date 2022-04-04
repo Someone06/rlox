@@ -1,4 +1,5 @@
 use ::std::io::Write;
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -255,6 +256,10 @@ impl Chunk {
     fn add_constant(&mut self, value: Value) -> usize {
         self.constants.push(value);
         self.constants.len() - 1
+    }
+    
+    fn len(&self) -> usize {
+        self.code.len()
     }
 
     fn finish(&mut self) {
@@ -523,6 +528,10 @@ impl ChunkBuilder {
 
     pub fn add_constant(&mut self, value: Value) -> usize {
         self.builder.deref().borrow_mut().add_constant(value)
+    }
+    
+    pub fn len(&self) -> usize {
+        self.builder.deref().borrow().chunk.len()
     }
 
     pub fn build(self) -> Chunk {
