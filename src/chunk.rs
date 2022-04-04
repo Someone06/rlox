@@ -28,6 +28,8 @@ pub enum OpCode {
     OpSetGlobal,
     OpGetLocal,
     OpSetLocal,
+    OpJump,
+    OpJumpIfFalse,
 }
 
 struct IndexesPerOpCode {
@@ -58,6 +60,8 @@ impl IndexesPerOpCode {
             OpCode::OpSetGlobal => 1,
             OpCode::OpGetLocal => 1,
             OpCode::OpSetLocal => 1,
+            OpCode::OpJump => 2,
+            OpCode::OpJumpIfFalse => 2,
         };
 
         IndexesPerOpCode { map }
@@ -291,6 +295,10 @@ impl Chunk {
             | OpCode::OpTrue
             | OpCode::OpFalse
             | OpCode::OpNil => self.simple_instruction(opcode, offset, writer),
+
+            OpCode::OpJump | OpCode::OpJumpIfFalse => {
+                self.jump_instruction(opcode, offset, 1, writer)
+            }
         }
     }
 
@@ -323,6 +331,27 @@ impl Chunk {
         let index = unsafe { code_unit.get_index() };
         let value = &self.constants[index as usize];
         writeln!(writer, "{:-16} {:4} '{}'", opcode, index, value).map(|_| offset + 2)
+    }
+
+    fn jump_instruction(
+        &self,
+        opcode: OpCode,
+        offset: usize,
+        sign: usize,
+        writer: &mut impl Write,
+    ) -> Result<usize, std::io::Error> {
+        let code_unit_high = self.code[offset + 1];
+        let code_unit_low = self.code[offset + 2];
+
+        // Safety: We know that the instruction at offset is a jump instruction.
+        // That instruction requires exactly two indexes, so the code units at offset + 1 and
+        // offset + 2 have to be indexes // index.
+        let high = unsafe { code_unit_high.get_index() };
+        let low = unsafe { code_unit_low.get_index() };
+
+        let jump = ((high as u16) << 8) + (low as u16);
+        let dest = offset + 3 + (sign * jump as usize);
+        writeln!(writer, "{:-16} {:4} -> {}", opcode, offset, dest).map(|_| offset + 3)
     }
 
     fn simple_instruction(

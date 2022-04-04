@@ -224,6 +224,8 @@ impl VM {
                 OpCode::OpTrue => self.stack.push(Value::Bool(true)),
                 OpCode::OpFalse => self.stack.push(Value::Bool(false)),
                 OpCode::OpNil => self.stack.push(Value::Nil),
+
+                OpCode::OpJump | OpCode::OpJumpIfFalse => todo!(),
             }
         }
     }
