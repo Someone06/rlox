@@ -23,14 +23,12 @@ fn main() {
                 let scanner = Scanner::new(chars.as_slice());
                 let compiler = Parser::new(scanner.parse());
                 if let Ok((function, symbol_table)) = compiler.compile() {
-                    /*
-                    let mut vm = VM::new(function.get_chunk(), symbol_table);
+                    let mut vm = VM::new(function, symbol_table);
                     if let Ok(value) = vm.interpret() {
                         println!("Result: {}", value);
                     } else {
                         println!("Vm error failed.");
                     }
-                    */
                 } else {
                     println!("Compilation failed.");
                 }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::chunk::{Chunk, OpCode, Value};
+use crate::chunk::{OpCode, Value};
+use crate::function::Function;
 use crate::intern_string::{Symbol, SymbolTable};
 
 #[derive(PartialEq, Eq, Debug)]
@@ -10,22 +11,24 @@ pub enum InterpretResult {
 }
 
 pub struct VM {
-    chunk: Chunk,
-    ip: usize,
+    frames: Vec<CallFrame>,
     stack: Vec<Value>,
     symbol_table: SymbolTable,
     globals: HashMap<Symbol, Value>,
 }
 
 impl VM {
-    pub fn new(chunk: Chunk, symbol_table: SymbolTable) -> Self {
-        VM {
-            chunk,
-            ip: 0,
+    pub fn new(function: Function, symbol_table: SymbolTable) -> Self {
+        let mut vm = VM {
             stack: Vec::new(),
             symbol_table,
             globals: HashMap::new(),
-        }
+            frames: Vec::new(),
+        };
+
+        vm.stack.push(Value::Function(function.clone()));
+        vm.frames.push(CallFrame::new(function, 0, 0));
+        vm
     }
 
     pub fn interpret(&mut self) -> Result<Value, InterpretResult> {
@@ -41,7 +44,10 @@ impl VM {
             //         after reading it. So self.ip - 1 points to that opcode.
             #[cfg(debug_assertions)]
             unsafe {
-                let _ = self.chunk.print_disassemble_instruction_unsafe(self.ip - 1);
+                let frame = self.frames.last().unwrap();
+                let chunk = frame.get_function().get_chunk();
+                let ip = frame.get_ip();
+                let _ = chunk.print_disassemble_instruction_unsafe(ip - 1);
             }
 
             match opcode {
@@ -231,7 +237,7 @@ impl VM {
                     //         been calculated in the compiler s.t. self.ip points to an opcode
                     //         after increasing it by offset.
                     let offset = unsafe { self.read_short() };
-                    self.ip += offset as usize;
+                    self.frames.last_mut().unwrap().inc_ip(offset as usize);
                 }
                 OpCode::OpJumpIfFalse => {
                     // Safety: We know that OpJumpIfFalse takes two arguments to which self.ip
@@ -241,7 +247,7 @@ impl VM {
                     //         points to an opcode after increasing it by offset.
                     let offset = unsafe { self.read_short() };
                     if self.stack.last().unwrap().is_falsey() {
-                        self.ip += offset as usize;
+                        self.frames.last_mut().unwrap().inc_ip(offset as usize);
                     }
                 }
                 OpCode::OpLoop => {
@@ -250,7 +256,7 @@ impl VM {
                     //         The offset has been calculated in the compiler s.t. self.ip
                     //         points to an opcode after decrementing it by offset.
                     let offset = unsafe { self.read_short() };
-                    self.ip -= offset as usize;
+                    self.frames.last_mut().unwrap().dec_ip(offset as usize);
                 }
             }
         }
@@ -282,23 +288,29 @@ impl VM {
 
     fn reset_stack(&mut self) {
         self.stack.clear();
-        self.ip = 0;
+        self.frames.clear();
     }
 
     /// Safety: It is only safe to call this function when self.ip is the index of an index in
     /// self.chunk.
     unsafe fn read_index(&mut self) -> u8 {
-        let code_unit = self.chunk.get_code_unit(self.ip);
-        self.ip += 1;
+        let frame = self.frames.last_mut().unwrap();
+        let chunk = frame.get_function().get_chunk();
+        let ip = frame.get_ip();
+        let code_unit = chunk.get_code_unit(ip);
+        frame.inc_ip(1);
         code_unit.get_index()
     }
 
     /// Safety: It is only safe to call this function when self.ip is the index of an short value
     /// consisting of two consecutive indexes in self.chunk.
     unsafe fn read_short(&mut self) -> u16 {
-        let code_unit_high = self.chunk.get_code_unit(self.ip);
-        let code_unit_low = self.chunk.get_code_unit(self.ip + 1);
-        self.ip += 2;
+        let frame = self.frames.last_mut().unwrap();
+        let chunk = frame.get_function().get_chunk();
+        let ip = frame.get_ip();
+        let code_unit_high = chunk.get_code_unit(ip);
+        let code_unit_low = chunk.get_code_unit(ip + 1);
+        frame.inc_ip(2);
 
         let high = code_unit_high.get_index();
         let low = code_unit_low.get_index();
@@ -309,23 +321,30 @@ impl VM {
     /// self.chunk.
     unsafe fn read_constant(&mut self) -> &Value {
         let index = self.read_index();
-        self.chunk.get_value_at_index(index)
+        let frame = self.frames.last().unwrap();
+        let chunk = frame.get_function().get_chunk();
+        chunk.get_value_at_index(index)
     }
 
     /// Safety: It's only save to call this function when self.ip is the index of an opcode in
     ///         self.chunk.
     unsafe fn read_opcode(&mut self) -> OpCode {
-        let code_unit = self.chunk.get_code_unit(self.ip);
-        self.ip += 1;
-
+        let frame = self.frames.last_mut().unwrap();
+        let chunk = frame.get_function().get_chunk();
+        let ip = frame.get_ip();
+        let code_unit = chunk.get_code_unit(ip);
+        frame.inc_ip(1);
         code_unit.get_opcode()
     }
 
     fn runtime_error(&mut self, message: &str) {
+        let frame = self.frames.last().unwrap();
+        let chunk = frame.get_function().get_chunk();
+        let ip = frame.get_ip();
         eprintln!(
             "{}\n[line {}] in script",
             message,
-            self.chunk.get_source_code_line(self.ip)
+            chunk.get_source_code_line(ip)
         );
 
         self.reset_stack();
@@ -338,11 +357,53 @@ impl VM {
     }
 }
 
+struct CallFrame {
+    function: Function,
+    ip: usize,
+    slots: usize,
+}
+
+impl CallFrame {
+    pub fn new(function: Function, ip: usize, slots: usize) -> Self {
+        Self {
+            function,
+            ip,
+            slots,
+        }
+    }
+
+    pub fn get_function(&self) -> &Function {
+        &self.function
+    }
+    pub fn get_ip(&self) -> usize {
+        self.ip
+    }
+
+    pub fn set_ip(&mut self, position: usize) {
+        self.ip = position;
+    }
+
+    pub fn inc_ip(&mut self, difference: usize) {
+        self.ip += difference;
+    }
+
+    pub fn dec_ip(&mut self, difference: usize) {
+        self.ip = (self.ip as isize - difference as isize) as usize;
+    }
+
+    pub fn get_slots(&self) -> usize {
+        self.slots
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::chunk::{ChunkBuilder, OpCode, Value};
+    use crate::function::{FunctionBuilder, FunctionType};
     use crate::intern_string::SymbolTable;
     use crate::vm::VM;
+
+    use std::ops::DerefMut;
 
     macro_rules! load_constant {
         ($builder:ident, $index: literal, $value:literal, $line: literal) => {{
@@ -354,8 +415,11 @@ mod tests {
 
     macro_rules! check_result {
         ($builder:ident, $result: literal) => {{
-            let chunk = $builder.build();
-            let mut vm = VM::new(chunk, SymbolTable::new());
+            let mut builder = $builder;
+            let mut function = FunctionBuilder::new(None, 0, FunctionType::Script);
+            let function_chunk = function.deref_mut();
+            std::mem::swap(function_chunk, &mut builder);
+            let mut vm = VM::new(function.build(), SymbolTable::new());
             let result = vm.interpret().unwrap();
             match result {
                 Value::Double(float) => assert_eq!($result, float.round() as isize),
