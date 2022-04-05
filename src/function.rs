@@ -121,9 +121,21 @@ impl FunctionBuilder {
             builder: ChunkBuilder::new(),
         }
     }
-    
+
     pub fn get_name(&self) -> Option<&Symbol> {
         self.name.as_ref()
+    }
+
+    pub fn get_arity(&self) -> usize {
+        self.arity
+    }
+
+    pub fn inc_arity(&mut self, amount: usize) {
+        self.arity += amount;
+    }
+
+    pub fn set_name(&mut self, name: Symbol) {
+        self.name = Some(name);
     }
 
     pub fn build(self) -> Function {

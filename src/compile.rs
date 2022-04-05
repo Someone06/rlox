@@ -221,9 +221,35 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn function(&mut self, kind: FunctionType) {
         self.compilers.push(Compiler::new());
-        self.begin_scope();
+        if kind != FunctionType::Script {
+            let name = self.previous.get_lexme_string();
+            let intern = self.symbol_table.intern(name);
+            self.current_compiler()
+                .get_function_builder()
+                .set_name(intern);
+        }
 
+        self.begin_scope();
         self.consume(TokenType::LeftParen, "Expected '(' after function name.");
+
+        if !self.check(TokenType::RightParen) {
+            loop {
+                let function = self.current_compiler().get_function_builder();
+                function.inc_arity(1);
+
+                if function.get_arity() > 255 {
+                    self.error_at_current("Can't have more than 255 paramter names.");
+                }
+
+                let constant = self.parse_variable("Expected paramter name.");
+                self.define_variable(constant);
+
+                if !self.matches(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+
         self.consume(TokenType::RightParen, "Expected ')' after parameters.");
         self.consume(TokenType::LeftBrace, "Expected '{' before function body.");
 
