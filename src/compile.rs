@@ -19,7 +19,7 @@ pub struct Parser<'a, I: Iterator<Item = Token<'a>>> {
     panic_mode: bool,
     rules: ParseRules<'a, I>,
     symbol_table: SymbolTable,
-    compiler: Compiler<'a>,
+    compilers: Vec<Compiler<'a>>,
 }
 
 impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
@@ -32,9 +32,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             panic_mode: false,
             rules: ParseRules::new(),
             symbol_table: SymbolTable::new(),
-            compiler: Compiler::new(),
+            compilers: Vec::new(),
         };
-
+        parser.compilers.push(Compiler::new());
         parser.advance();
         parser
     }
@@ -56,7 +56,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
 impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn declaration(&mut self) {
-        if self.matches(TokenType::Var) {
+        if self.matches(TokenType::Fun) {
+            self.function_declaration();
+        } else if self.matches(TokenType::Var) {
             self.var_declaration();
         } else {
             self.statement();
@@ -210,6 +212,28 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
     }
 
+    fn function_declaration(&mut self) {
+        let global = self.parse_variable("Expected function name.");
+        self.current_compiler().mark_local_initialized();
+        self.function(FunctionType::Function);
+        self.define_variable(global);
+    }
+
+    fn function(&mut self, kind: FunctionType) {
+        self.compilers.push(Compiler::new());
+        self.begin_scope();
+
+        self.consume(TokenType::LeftParen, "Expected '(' after function name.");
+        self.consume(TokenType::RightParen, "Expected ')' after parameters.");
+        self.consume(TokenType::LeftBrace, "Expected '{' before function body.");
+
+        self.block();
+
+        let function = self.end_compile();
+        self.emit_opcode(OpCode::OpConstant);
+        self.emit_constant(Value::Function(function));
+    }
+
     fn var_declaration(&mut self) {
         let global = self.parse_variable("Expected variable name.");
         if self.matches(TokenType::Equal) {
@@ -229,7 +253,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.consume(TokenType::Identifier, error_message);
 
         self.declare_variable();
-        if self.compiler.get_scope_depth() > 0 {
+        if self.current_compiler().get_scope_depth() > 0 {
             0
         } else {
             self.identifier_constant(self.previous.get_lexme_string())
@@ -242,10 +266,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn declare_variable(&mut self) {
-        if self.compiler.get_scope_depth() > 0 {
+        if self.current_compiler().get_scope_depth() > 0 {
             let name = self.previous.clone();
             if !self
-                .compiler
+                .current_compiler()
                 .check_variable_declared_in_current_scope(&name)
             {
                 self.add_local(name);
@@ -256,18 +280,18 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn define_variable(&mut self, global: u8) {
-        if self.compiler.get_scope_depth() == 0 {
+        if self.current_compiler().get_scope_depth() == 0 {
             self.emit_opcode(OpCode::OpDefineGlobal);
             self.emit_index(global);
         } else {
-            self.compiler.mark_local_initialized();
+            self.current_compiler().mark_local_initialized();
         }
     }
 
     fn add_local(&mut self, name: Token<'a>) {
-        if self.compiler.get_local_count() < (u8::MAX as usize) {
+        if self.current_compiler().get_local_count() < (u8::MAX as usize) {
             let local = Local::new(name, -1);
-            self.compiler.push_local(local);
+            self.current_compiler().push_local(local);
         } else {
             self.error("Too many local variables in function.");
         }
@@ -288,12 +312,12 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn begin_scope(&mut self) {
-        self.compiler.inc_scope_depth();
+        self.current_compiler().inc_scope_depth();
     }
 
     fn end_scope(&mut self) {
-        self.compiler.dec_scope_depth();
-        let remove_count = self.compiler.remove_out_of_scope_locals();
+        self.current_compiler().dec_scope_depth();
+        let remove_count = self.current_compiler().remove_out_of_scope_locals();
         (0..remove_count).for_each(|_| self.emit_opcode(OpCode::OpPop));
     }
 
@@ -348,7 +372,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn named_variable(&mut self, name: Token<'a>, can_assign: bool) {
-        let (mut arg, uninitialized) = self.compiler.resolve(&name);
+        let (mut arg, uninitialized) = self.current_compiler().resolve(&name);
         if uninitialized {
             self.error("Can't read local variable in its own initializer.");
         }
@@ -494,7 +518,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn current_chunk(&mut self) -> &mut ChunkBuilder {
-        self.compiler.get_function_builder().deref_mut()
+        self.current_compiler().get_function_builder().deref_mut()
+    }
+
+    fn current_compiler(&mut self) -> &mut Compiler<'a> {
+        self.compilers.last_mut().unwrap()
     }
 
     fn end_compile(&mut self) -> Function {
@@ -504,7 +532,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             #[cfg(debug_assertions)]
             {
                 let name = self
-                    .compiler
+                    .current_compiler()
                     .get_function_builder()
                     .get_name()
                     .map_or(String::from("<script>"), |s| String::clone(s));
@@ -512,11 +540,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             }
         }
 
-        let builder = std::mem::replace(
-            self.compiler.get_function_builder(),
-            FunctionBuilder::new(None, 0, FunctionType::Script),
-        );
-        builder.build()
+        self.compilers.pop().unwrap().compile()
     }
 
     fn consume(&mut self, token_type: TokenType, message: &str) {
@@ -765,10 +789,12 @@ impl<'a> Compiler<'a> {
     }
 
     fn mark_local_initialized(&mut self) {
-        self.locals
-            .last_mut()
-            .unwrap()
-            .set_depth(self.scope_depth as isize);
+        if self.scope_depth > 0 {
+            self.locals
+                .last_mut()
+                .unwrap()
+                .set_depth(self.scope_depth as isize);
+        }
     }
 
     fn check_variable_declared_in_current_scope(&self, name: &Token<'a>) -> bool {
@@ -805,6 +831,10 @@ impl<'a> Compiler<'a> {
 
     fn get_function_builder(&mut self) -> &mut FunctionBuilder {
         &mut self.function_builder
+    }
+
+    fn compile(self) -> Function {
+        self.function_builder.build()
     }
 }
 
