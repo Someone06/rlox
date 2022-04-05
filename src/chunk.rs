@@ -1,3 +1,4 @@
+use crate::function::Function;
 use ::std::io::Write;
 use std::cell::RefCell;
 use std::ops::Deref;
@@ -129,6 +130,7 @@ pub enum Value {
     Bool(bool),
     Double(f64),
     String(Symbol),
+    Function(Function),
     Nil,
 }
 
@@ -144,6 +146,7 @@ impl std::fmt::Display for Value {
             Value::Bool(b) => b.to_string(),
             Value::Double(f) => f.to_string(),
             Value::String(s) => s.to_string(),
+            Value::Function(f) => f.to_string(),
             Value::Nil => String::from("Nil"),
         };
 
