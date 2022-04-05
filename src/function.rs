@@ -100,7 +100,7 @@ impl std::fmt::Display for FunctionInner {
         write!(
             f,
             "<fn {}>",
-            self.get_name().map_or("<unnamed>", |s| s.as_str())
+            self.get_name().map_or("<script>", |s| s.as_str())
         )
     }
 }
@@ -120,6 +120,10 @@ impl FunctionBuilder {
             kind,
             builder: ChunkBuilder::new(),
         }
+    }
+    
+    pub fn get_name(&self) -> Option<&Symbol> {
+        self.name.as_ref()
     }
 
     pub fn build(self) -> Function {

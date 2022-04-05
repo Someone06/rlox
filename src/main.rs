@@ -22,13 +22,15 @@ fn main() {
                 let chars = code.chars().collect::<Vec<char>>();
                 let scanner = Scanner::new(chars.as_slice());
                 let compiler = Parser::new(scanner.parse());
-                if let Ok((chunk, symbol_table)) = compiler.compile() {
-                    let mut vm = VM::new(chunk, symbol_table);
+                if let Ok((function, symbol_table)) = compiler.compile() {
+                    /*
+                    let mut vm = VM::new(function.get_chunk(), symbol_table);
                     if let Ok(value) = vm.interpret() {
                         println!("Result: {}", value);
                     } else {
                         println!("Vm error failed.");
                     }
+                    */
                 } else {
                     println!("Compilation failed.");
                 }

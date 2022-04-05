@@ -1,7 +1,9 @@
 use crate::chunk::OpCode::OpPop;
-use crate::chunk::{Chunk, ChunkBuilder, OpCode, Patch, Value};
+use crate::chunk::{ChunkBuilder, OpCode, Patch, Value};
+use crate::function::{Function, FunctionBuilder, FunctionType};
 use crate::intern_string::SymbolTable;
 use crate::tokens::{Token, TokenType};
+use std::ops::DerefMut;
 
 macro_rules! emit_opcodes {
         ($instance:ident, $($opcode:expr $(,)?),+ $(,)?) => {{
@@ -13,7 +15,6 @@ pub struct Parser<'a, I: Iterator<Item = Token<'a>>> {
     source: I,
     current: Token<'a>,
     previous: Token<'a>,
-    chunk: ChunkBuilder,
     had_error: bool,
     panic_mode: bool,
     rules: ParseRules<'a, I>,
@@ -27,7 +28,6 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             source,
             current: Token::new(TokenType::Error, &[], 0),
             previous: Token::new(TokenType::Error, &[], 0),
-            chunk: ChunkBuilder::new(),
             had_error: false,
             panic_mode: false,
             rules: ParseRules::new(),
@@ -39,20 +39,17 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         parser
     }
 
-    pub fn compile(mut self) -> Result<(Chunk, SymbolTable), ()> {
+    pub fn compile(mut self) -> Result<(Function, SymbolTable), ()> {
         while !self.matches(TokenType::EOF) {
             self.declaration();
         }
 
-        self.end_compile();
-
-        #[cfg(debug_assertions)]
-        let _ = self.current_chunk().print_disassemble("code");
+        let function = self.end_compile();
 
         if self.had_error {
             Err(())
         } else {
-            Ok((self.chunk.build(), self.symbol_table))
+            Ok((function, self.symbol_table))
         }
     }
 }
@@ -185,7 +182,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn while_statement(&mut self) {
-        let loop_start = self.chunk.len();
+        let loop_start = self.current_chunk().len();
         self.consume(TokenType::LeftParen, "Expected '(' after 'while'.");
         self.expression();
         self.consume(TokenType::RightParen, "Expected ')' after condition.");
@@ -199,7 +196,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn patch_jump(&mut self, patch: Patch) {
-        let distance = self.chunk.len() - patch.get_own_index() - 2;
+        let distance = self.current_chunk().len() - patch.get_own_index() - 2;
 
         if distance > u16::MAX as usize {
             self.error("Too much code to jump over.");
@@ -464,10 +461,6 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.emit_opcode(OpCode::OpReturn);
     }
 
-    fn end_compile(&mut self) {
-        self.emit_return();
-    }
-
     fn emit_opcode(&mut self, opcode: OpCode) {
         let line = self.previous.get_line();
         self.current_chunk().write_opcode(opcode, line);
@@ -501,7 +494,29 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn current_chunk(&mut self) -> &mut ChunkBuilder {
-        &mut self.chunk
+        self.compiler.get_function_builder().deref_mut()
+    }
+
+    fn end_compile(&mut self) -> Function {
+        self.emit_return();
+
+        if !self.had_error {
+            #[cfg(debug_assertions)]
+            {
+                let name = self
+                    .compiler
+                    .get_function_builder()
+                    .get_name()
+                    .map_or(String::from("<script>"), |s| String::clone(s));
+                let _ = self.current_chunk().print_disassemble(name.as_str());
+            }
+        }
+
+        let builder = std::mem::replace(
+            self.compiler.get_function_builder(),
+            FunctionBuilder::new(None, 0, FunctionType::Script),
+        );
+        builder.build()
     }
 
     fn consume(&mut self, token_type: TokenType, message: &str) {
@@ -713,14 +728,18 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
 }
 
 struct Compiler<'a> {
+    function_builder: FunctionBuilder,
     locals: Vec<Local<'a>>,
     scope_depth: usize,
 }
 
 impl<'a> Compiler<'a> {
     fn new() -> Self {
+        // We reserve the fist locals entry for internal use.
+        let local = Local::new(Token::new(TokenType::EOF, &[], 0), 0);
         Compiler {
-            locals: Vec::new(),
+            function_builder: FunctionBuilder::new(None, 0, FunctionType::Script),
+            locals: vec![local],
             scope_depth: 0,
         }
     }
@@ -782,6 +801,10 @@ impl<'a> Compiler<'a> {
             .rev()
             .find(|(_, l)| l.get_name().get_lexme() == name.get_lexme())
             .map_or((-1, false), |(i, l)| (i as isize, l.get_depth() == -1))
+    }
+
+    fn get_function_builder(&mut self) -> &mut FunctionBuilder {
+        &mut self.function_builder
     }
 }
 
