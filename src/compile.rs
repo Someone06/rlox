@@ -1,3 +1,4 @@
+use crate::chunk::OpCode::OpPop;
 use crate::chunk::{Chunk, ChunkBuilder, OpCode, Patch, Value};
 use crate::intern_string::SymbolTable;
 use crate::tokens::{Token, TokenType};
@@ -102,6 +103,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             self.if_statement();
         } else if self.matches(TokenType::While) {
             self.while_statement();
+        } else if self.matches(TokenType::For) {
+            self.for_statement();
         } else if self.matches(TokenType::LeftBrace) {
             self.begin_scope();
             self.block();
@@ -128,6 +131,57 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
 
         self.patch_jump(else_branch);
+    }
+
+    fn for_statement(&mut self) {
+        // Variables decleared in a for-loop live in their own scope.
+        self.begin_scope();
+        self.consume(TokenType::LeftParen, "Expected '(' after 'for'.");
+
+        // Initializer clause is optional and can be an expression statement or a variable declaration.
+        if self.matches(TokenType::Semicolon) {
+            // No initialization.
+        } else if self.matches(TokenType::Var) {
+            self.var_declaration();
+        } else {
+            self.expression_statement();
+        }
+
+        let mut loop_start = self.current_chunk().len();
+
+        // The exit condition is optional.
+        let exit_jump = if !self.matches(TokenType::Semicolon) {
+            self.expression();
+            self.consume(TokenType::Semicolon, "Expected ';' after loop condition.");
+            let jmp = self.emit_jump(OpCode::OpJumpIfFalse);
+            self.emit_opcode(OpCode::OpPop);
+            Some(jmp)
+        } else {
+            None
+        };
+
+        // The increment clause is optional.
+        if !self.matches(TokenType::RightParen) {
+            let body_jump = self.emit_jump(OpCode::OpJump);
+            let inc_start = self.current_chunk().len();
+            self.expression();
+            self.emit_opcode(OpCode::OpPop);
+            self.consume(TokenType::RightParen, "Expected ')' after for clause.");
+
+            self.emit_loop(loop_start);
+            loop_start = inc_start;
+            self.patch_jump(body_jump);
+        }
+
+        self.statement();
+        self.emit_loop(loop_start);
+
+        if let Some(jump) = exit_jump {
+            self.patch_jump(jump);
+            self.emit_opcode(OpPop);
+        }
+
+        self.end_scope();
     }
 
     fn while_statement(&mut self) {
