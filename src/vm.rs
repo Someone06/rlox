@@ -27,7 +27,7 @@ impl VM {
         };
 
         vm.stack.push(Value::Function(function.clone()));
-        vm.frames.push(CallFrame::new(function, 0, 0));
+        vm.call(function, 0);
         vm
     }
 
@@ -52,12 +52,17 @@ impl VM {
 
             match opcode {
                 OpCode::OpReturn => {
-                    let result = self
-                        .stack
-                        .pop()
-                        .expect("Stack should never be empty when executing OpReturn.");
-                    println!("{}", result);
-                    return Ok(result);
+                    let value = self.stack.pop().unwrap();
+                    let frame = self.frames.pop().unwrap();
+
+                    if self.frames.is_empty() {
+                        // Reached end of program.
+                        self.stack.pop();
+                        return Ok(value);
+                    } else {
+                        self.stack.truncate(frame.get_slots());
+                        self.stack.push(value);
+                    }
                 }
                 OpCode::OpPrint => {
                     println!("{}", self.stack.pop().unwrap());
@@ -258,7 +263,43 @@ impl VM {
                     let offset = unsafe { self.read_short() };
                     self.frames.last_mut().unwrap().dec_ip(offset as usize);
                 }
+                OpCode::OpCall => {
+                    let arg_count = unsafe { self.read_index() };
+                    let callee = self.stack[self.stack.len() - 1 - arg_count as usize].clone();
+                    if !self.call_value(callee, arg_count) {
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                    self.frames.pop();
+                }
             }
+        }
+    }
+
+    fn call_value(&mut self, callee: Value, arg_count: u8) -> bool {
+        match callee {
+            Value::Function(fun) => self.call(fun, arg_count),
+            _ => {
+                self.runtime_error("Can only call functions and classes.");
+                false
+            }
+        }
+    }
+
+    fn call(&mut self, function: Function, arg_count: u8) -> bool {
+        if arg_count as usize == function.get_arity() {
+            let frame = CallFrame::new(function, 0, self.stack.len() - arg_count as usize - 1);
+            self.frames.push(frame);
+            true
+        } else {
+            self.runtime_error(
+                format!(
+                    "Expected {} arguments, but got {}.",
+                    function.get_arity(),
+                    arg_count
+                )
+                .as_str(),
+            );
+            false
         }
     }
 
@@ -338,14 +379,19 @@ impl VM {
     }
 
     fn runtime_error(&mut self, message: &str) {
-        let frame = self.frames.last().unwrap();
-        let chunk = frame.get_function().get_chunk();
-        let ip = frame.get_ip();
-        eprintln!(
-            "{}\n[line {}] in script",
-            message,
-            chunk.get_source_code_line(ip)
-        );
+        for frame in self.frames.iter().rev() {
+            let function = frame.get_function();
+            let ip = frame.get_ip() - 1;
+            let name = match function.get_name() {
+                Some(name) => name.as_str(),
+                None => "script",
+            };
+            eprint!(
+                "[line {}] in {}()",
+                function.get_chunk().get_source_code_line(ip),
+                name
+            );
+        }
 
         self.reset_stack();
     }

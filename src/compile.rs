@@ -260,6 +260,33 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.emit_constant(Value::Function(function));
     }
 
+    fn call(&mut self) {
+        let arg_count = self.argument_list();
+        self.emit_opcode(OpCode::OpCall);
+        self.emit_index(arg_count);
+    }
+
+    fn argument_list(&mut self) -> u8 {
+        let mut arg_count: u8 = 0;
+
+        if !self.check(TokenType::RightParen) {
+            loop {
+                self.expression();
+                if arg_count == 255 {
+                    self.error("Can't have more than 255 arguments.");
+                }
+                arg_count += 1;
+
+                if !self.matches(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenType::RightParen, "Expected ')' after arguments.");
+        arg_count
+    }
+
     fn var_declaration(&mut self) {
         let global = self.parse_variable("Expected variable name.");
         if self.matches(TokenType::Equal) {
@@ -508,6 +535,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn emit_return(&mut self) {
+        self.emit_opcode(OpCode::OpNil);
         self.emit_opcode(OpCode::OpReturn);
     }
 
@@ -727,7 +755,7 @@ struct ParseRules<'a, I: Iterator<Item = Token<'a>>> {
 impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
     fn new() -> Self {
         let rules = ::enum_map::enum_map! {
-        TokenType::LeftParen    => ParseRule::new(Some(|c, _| {c.grouping()}), None, Precedence::None),
+        TokenType::LeftParen    => ParseRule::new(Some(|c, _| c.grouping()), Some(|c, _| c.call()), Precedence::None),
             TokenType::RightParen   => ParseRule::new(None, None, Precedence::None),
             TokenType::LeftBrace    => ParseRule::new(None, None, Precedence::None),
             TokenType::RightBrace   => ParseRule::new(None, None, Precedence::None),

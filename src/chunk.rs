@@ -35,6 +35,7 @@ pub enum OpCode {
     OpJump,
     OpJumpIfFalse,
     OpLoop,
+    OpCall,
 }
 
 struct IndexesPerOpCode {
@@ -68,6 +69,7 @@ impl IndexesPerOpCode {
             OpCode::OpJump => 2,
             OpCode::OpJumpIfFalse => 2,
             OpCode::OpLoop => 2,
+            OpCode::OpCall => 1,
         };
 
         IndexesPerOpCode { map }
@@ -299,7 +301,7 @@ impl Chunk {
             | OpCode::OpDefineGlobal
             | OpCode::OpGetGlobal
             | OpCode::OpSetGlobal => self.constant_instruction(opcode, offset, writer),
-            OpCode::OpGetLocal | OpCode::OpSetLocal => {
+            OpCode::OpGetLocal | OpCode::OpSetLocal | OpCode::OpCall => {
                 self.byte_instruction(opcode, offset, writer)
             }
             OpCode::OpReturn
