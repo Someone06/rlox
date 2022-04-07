@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::chunk::{OpCode, Value};
-use crate::function::Function;
+use crate::function::{clock, Function, NativeFunction};
 use crate::intern_string::{Symbol, SymbolTable};
 
 #[derive(PartialEq, Eq, Debug)]
@@ -28,6 +28,7 @@ impl VM {
 
         vm.stack.push(Value::Function(function.clone()));
         vm.call(function, 0);
+        vm.define_native(String::from("clock"), NativeFunction::new(clock, 0));
         vm
     }
 
@@ -278,6 +279,26 @@ impl VM {
     fn call_value(&mut self, callee: Value, arg_count: u8) -> bool {
         match callee {
             Value::Function(fun) => self.call(fun, arg_count),
+            Value::NativeFunction(fun) => {
+                if arg_count as usize == fun.get_arity() {
+                    let args = &self.stack[self.stack.len() - arg_count as usize..];
+                    let result = fun.call(args);
+                    self.stack
+                        .truncate(self.stack.len().saturating_sub(arg_count as usize + 1));
+                    self.stack.push(result);
+                    true
+                } else {
+                    self.runtime_error(
+                        format!(
+                            "Expected {} arguments, but got {}.",
+                            fun.get_arity(),
+                            arg_count
+                        )
+                        .as_str(),
+                    );
+                    false
+                }
+            }
             _ => {
                 self.runtime_error("Can only call functions and classes.");
                 false
@@ -301,6 +322,11 @@ impl VM {
             );
             false
         }
+    }
+
+    fn define_native(&mut self, name: String, function: NativeFunction) {
+        let intern = self.symbol_table.intern(name);
+        self.globals.insert(intern, Value::NativeFunction(function));
     }
 
     fn binary_double_op(

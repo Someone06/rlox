@@ -1,4 +1,4 @@
-use crate::function::Function;
+use crate::function::{Function, NativeFunction};
 use ::std::io::Write;
 use std::cell::RefCell;
 use std::ops::Deref;
@@ -133,6 +133,7 @@ pub enum Value {
     Double(f64),
     String(Symbol),
     Function(Function),
+    NativeFunction(NativeFunction),
     Nil,
 }
 
@@ -149,6 +150,7 @@ impl std::fmt::Display for Value {
             Value::Double(f) => f.to_string(),
             Value::String(s) => s.to_string(),
             Value::Function(f) => f.to_string(),
+            Value::NativeFunction(_) => String::from("<native fn>"),
             Value::Nil => String::from("Nil"),
         };
 

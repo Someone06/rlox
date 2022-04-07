@@ -1,4 +1,4 @@
-use crate::chunk::{Chunk, ChunkBuilder};
+use crate::chunk::{Chunk, ChunkBuilder, Value};
 use crate::intern_string::Symbol;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
@@ -171,4 +171,49 @@ impl Display for FunctionType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
+}
+
+#[derive(Copy, Clone)]
+pub struct NativeFunction {
+    function: fn(args: &[Value]) -> Value,
+    arity: usize,
+}
+
+impl PartialEq for NativeFunction {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(
+            self.function as *const fn(&[Value]) -> Value,
+            other.function as *const _,
+        )
+    }
+}
+
+impl Eq for NativeFunction {}
+
+impl Debug for NativeFunction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<native fn>")
+    }
+}
+
+impl NativeFunction {
+    pub fn new(function: fn(&[Value]) -> Value, arity: usize) -> Self {
+        NativeFunction { function, arity }
+    }
+
+    pub fn call(&self, args: &[Value]) -> Value {
+        (self.function)(args)
+    }
+
+    pub fn get_arity(&self) -> usize {
+        self.arity
+    }
+}
+
+pub fn clock(_: &[Value]) -> Value {
+    let start = std::time::SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards");
+    Value::Double(since_the_epoch.as_secs_f64())
 }
