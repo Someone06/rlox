@@ -130,6 +130,10 @@ impl FunctionBuilder {
         self.arity
     }
 
+    pub fn get_kind(&self) -> FunctionType {
+        self.kind
+    }
+
     pub fn inc_arity(&mut self, amount: usize) {
         self.arity += amount;
     }

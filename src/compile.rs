@@ -104,6 +104,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             self.while_statement();
         } else if self.matches(TokenType::For) {
             self.for_statement();
+        } else if self.matches(TokenType::Return) {
+            self.return_statement();
         } else if self.matches(TokenType::LeftBrace) {
             self.begin_scope();
             self.block();
@@ -285,6 +287,20 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         self.consume(TokenType::RightParen, "Expected ')' after arguments.");
         arg_count
+    }
+
+    fn return_statement(&mut self) {
+        if self.current_compiler().get_function_builder().get_kind() == FunctionType::Script {
+            self.error("Can't return from top-level code.");
+        }
+
+        if self.matches(TokenType::Semicolon) {
+            self.emit_return();
+        } else {
+            self.expression();
+            self.consume(TokenType::Semicolon, "Expected ';' after return value.");
+            self.emit_opcode(OpCode::OpReturn);
+        }
     }
 
     fn var_declaration(&mut self) {
