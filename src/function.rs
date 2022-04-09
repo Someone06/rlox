@@ -1,8 +1,9 @@
-use crate::chunk::{Chunk, ChunkBuilder, Value};
-use crate::intern_string::Symbol;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
+
+use crate::chunk::{Chunk, ChunkBuilder, Value};
+use crate::intern_string::Symbol;
 
 pub struct Function {
     inner: Rc<FunctionInner>,
@@ -132,6 +133,10 @@ impl FunctionBuilder {
 
     pub fn get_kind(&self) -> FunctionType {
         self.kind
+    }
+
+    pub fn set_kind(&mut self, kind: FunctionType) {
+        self.kind = kind;
     }
 
     pub fn inc_arity(&mut self, amount: usize) {

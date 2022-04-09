@@ -1,9 +1,10 @@
+use std::ops::DerefMut;
+
 use crate::chunk::OpCode::OpPop;
 use crate::chunk::{ChunkBuilder, OpCode, Patch, Value};
 use crate::function::{Function, FunctionBuilder, FunctionType};
 use crate::intern_string::SymbolTable;
 use crate::tokens::{Token, TokenType};
-use std::ops::DerefMut;
 
 macro_rules! emit_opcodes {
         ($instance:ident, $($opcode:expr $(,)?),+ $(,)?) => {{
@@ -223,6 +224,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn function(&mut self, kind: FunctionType) {
         self.compilers.push(Compiler::new());
+        self.current_compiler()
+            .get_function_builder()
+            .set_kind(kind);
         if kind != FunctionType::Script {
             let name = self.previous.get_lexme_string();
             let intern = self.symbol_table.intern(name);
@@ -240,10 +244,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
                 function.inc_arity(1);
 
                 if function.get_arity() > 255 {
-                    self.error_at_current("Can't have more than 255 paramter names.");
+                    self.error_at_current("Can't have more than 255 parameter names.");
                 }
 
-                let constant = self.parse_variable("Expected paramter name.");
+                let constant = self.parse_variable("Expected parameter name.");
                 self.define_variable(constant);
 
                 if !self.matches(TokenType::Comma) {
@@ -258,7 +262,6 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.block();
 
         let function = self.end_compile();
-        self.emit_opcode(OpCode::OpConstant);
         self.emit_constant(Value::Function(function));
     }
 
@@ -609,7 +612,6 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
                 let _ = self.current_chunk().print_disassemble(name.as_str());
             }
         }
-
         self.compilers.pop().unwrap().compile()
     }
 
@@ -649,7 +651,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
                     }
                 }
             } else {
-                panic!("Exhausted token stream without hitting EOF token.");
+                return;
             }
         }
     }
@@ -771,7 +773,7 @@ struct ParseRules<'a, I: Iterator<Item = Token<'a>>> {
 impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
     fn new() -> Self {
         let rules = ::enum_map::enum_map! {
-        TokenType::LeftParen    => ParseRule::new(Some(|c, _| c.grouping()), Some(|c, _| c.call()), Precedence::None),
+        TokenType::LeftParen    => ParseRule::new(Some(|c, _| c.grouping()), Some(|c, _| c.call()), Precedence::Call),
             TokenType::RightParen   => ParseRule::new(None, None, Precedence::None),
             TokenType::LeftBrace    => ParseRule::new(None, None, Precedence::None),
             TokenType::RightBrace   => ParseRule::new(None, None, Precedence::None),
