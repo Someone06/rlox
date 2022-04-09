@@ -92,7 +92,7 @@ impl<O: Write> VM<O> {
                     }
                 }
                 OpCode::OpPrint => {
-                    let _ = write!(self.print_output, "{}", self.stack.pop().unwrap());
+                    let _ = write!(self.print_output, "{}\n", self.stack.pop().unwrap());
                 }
                 OpCode::OpPop => {
                     self.stack.pop();

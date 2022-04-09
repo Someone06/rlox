@@ -24,7 +24,8 @@ fn expected_result(path: &str) -> Result<String, Error> {
             l
         })
         .collect::<Vec<String>>()
-        .join("\n"))
+        .join("\n")
+        + "\n")
 }
 
 fn test_program(file: &str) -> Result<(), Error> {
