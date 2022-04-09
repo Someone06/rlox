@@ -567,6 +567,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.current_chunk().write_index(index);
     }
 
+    fn emit_address(&mut self, position: u16) {
+        self.current_chunk().write_address(position);
+    }
+
     fn emit_jump(&mut self, opcode: OpCode) -> Patch {
         assert!(matches!(opcode, OpCode::OpJump | OpCode::OpJumpIfFalse));
         self.emit_opcode(opcode);
@@ -580,13 +584,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         if offset > u16::MAX as usize {
             self.error("Loop body too large.");
-            self.emit_index(0);
-            self.emit_index(0);
+            self.emit_address(0);
         } else {
-            let high = ((offset & 0xff00) >> 8) as u8;
-            let low = (offset & 0x00ff) as u8;
-            self.emit_index(high);
-            self.emit_index(low);
+            self.emit_address(offset as u16);
         }
     }
 

@@ -1,9 +1,9 @@
-use crate::function::{Function, NativeFunction};
 use ::std::io::Write;
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
+use crate::function::{Function, NativeFunction};
 use crate::intern_string::Symbol;
 
 /// This enum represents all opcodes, that is the instruction set of the virtual machine.
@@ -396,8 +396,6 @@ impl Chunk {
 pub struct ChunkBuilderInner {
     chunk: Chunk,
     required_indexes: u8,
-    max_index: Option<usize>,
-    constant_index: Option<usize>,
     indexes_per_op: IndexesPerOpCode,
     patch_count: usize,
 }
@@ -407,8 +405,6 @@ impl ChunkBuilderInner {
         ChunkBuilderInner {
             chunk: Chunk::new(),
             required_indexes: 0,
-            max_index: None,
-            constant_index: None,
             indexes_per_op: IndexesPerOpCode::new(),
             patch_count: 0,
         }
@@ -430,25 +426,29 @@ impl ChunkBuilderInner {
         if self.required_indexes != 0 {
             self.chunk.write_index(index);
             self.required_indexes -= 1;
-            if self.max_index.is_none() || self.max_index.unwrap() < (index as usize) {
-                self.max_index = Some(index as usize);
-            }
         } else {
             panic!("Requiring an opcode next.")
         }
     }
 
+    pub fn write_address(&mut self, position: u16) {
+        if self.required_indexes >= 2 {
+            let high = ((position & 0xff00) >> 8) as u8;
+            let low = (position & 0x00ff) as u8;
+            self.chunk.write_index(high);
+            self.chunk.write_index(low);
+            self.required_indexes -= 2;
+        } else {
+            panic!("Do not require two indexes");
+        }
+    }
+
     pub fn add_constant(&mut self, value: Value) -> usize {
-        let index = self.chunk.add_constant(value);
-        self.constant_index = Some(index);
-        index
+        self.chunk.add_constant(value)
     }
 
     pub fn build(mut self) -> Chunk {
-        if self.required_indexes == 0
-            && self.max_index == self.constant_index
-            && self.patch_count == 0
-        {
+        if self.required_indexes == 0 {
             self.chunk.finish();
             self.chunk
         } else if self.required_indexes != 0 {
@@ -522,9 +522,13 @@ impl ChunkBuilder {
         self.builder.deref().borrow_mut().write_index(index)
     }
 
+    pub fn write_address(&mut self, position: u16) {
+        self.builder.deref().borrow_mut().write_address(position)
+    }
+
     pub fn write_patch(&mut self) -> Patch {
         let mut builder = self.builder.deref().borrow_mut();
-        if builder.required_indexes != 0 {
+        if builder.required_indexes >= 2 {
             let location = builder.chunk.write_index(u8::MAX);
             builder.chunk.write_index(u8::MAX);
             builder.required_indexes -= 2;
