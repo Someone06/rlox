@@ -10,12 +10,8 @@ fn read_file(path: &str) -> Result<String, Error> {
 }
 
 fn capture_program(file: &str) -> Result<String, Error> {
-    run_program(file)?;
-    let mut buffer = "".to_string();
-    std::io::stdin()
-        .read_to_string(&mut buffer)
-        .map_err(|_| Error::IO)?;
-    Ok(buffer)
+    let result = run_program(file, Vec::new())?;
+    String::from_utf8(result).map_err(|_| Error::IO)
 }
 
 fn expected_result(path: &str) -> Result<String, Error> {
@@ -33,8 +29,8 @@ fn expected_result(path: &str) -> Result<String, Error> {
 
 fn test_program(file: &str) -> Result<(), Error> {
     let path = "tests/files/".to_string() + file + ".lox";
-    let output = capture_program(path.as_str())?;
-    let expected = expected_result(file)?;
+    let output = dbg!(capture_program(path.as_str())?);
+    let expected = dbg!(expected_result(path.as_str())?);
     assert_eq!(output, expected);
     Ok(())
 }

@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Write};
 
 use crate::compile::Parser;
 use crate::scanner::Scanner;
@@ -27,13 +27,12 @@ pub enum Error {
     Run,
 }
 
-pub fn run_program(path: &str) -> Result<(), Error> {
+pub fn run_program<W: Write>(path: &str, write: W) -> Result<W, Error> {
     let file = read_file(path)?;
     let chars = file.chars().collect::<Vec<char>>();
     let scanner = Scanner::new(chars.as_slice());
     let compiler = Parser::new(scanner.parse());
     let (function, symbol_table) = compiler.compile().map_err(|_| Error::Compile)?;
-    let mut vm = VM::new(function, symbol_table);
-    vm.interpret().map_err(|_| Error::Run)?;
-    Ok(())
+    let vm = VM::with_write(function, symbol_table, write);
+    vm.interpret().map_err(|_| Error::Run)
 }

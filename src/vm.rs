@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::Write;
 
 use crate::chunk::{OpCode, Value};
 use crate::function::{clock, Function, NativeFunction};
@@ -10,20 +11,22 @@ pub enum InterpretResult {
     RuntimeError,
 }
 
-pub struct VM {
+pub struct VM<O: Write> {
     frames: Vec<CallFrame>,
     stack: Vec<Value>,
     symbol_table: SymbolTable,
     globals: HashMap<Symbol, Value>,
+    print_output: O,
 }
 
-impl VM {
+impl VM<std::io::Stdout> {
     pub fn new(function: Function, symbol_table: SymbolTable) -> Self {
         let mut vm = VM {
             stack: Vec::new(),
             symbol_table,
             globals: HashMap::new(),
             frames: Vec::new(),
+            print_output: std::io::stdout(),
         };
 
         vm.stack.push(Value::Function(function.clone()));
@@ -31,8 +34,31 @@ impl VM {
         vm.define_native(String::from("clock"), NativeFunction::new(clock, 0));
         vm
     }
+}
 
-    pub fn interpret(&mut self) -> Result<Value, InterpretResult> {
+impl<O: Write> VM<O> {
+    pub fn with_write(function: Function, symbol_table: SymbolTable, write: O) -> Self {
+        let mut vm = VM {
+            stack: Vec::new(),
+            symbol_table,
+            globals: HashMap::new(),
+            frames: Vec::new(),
+            print_output: write,
+        };
+
+        vm.stack.push(Value::Function(function.clone()));
+        vm.call(function, 0);
+        vm.define_native(String::from("clock"), NativeFunction::new(clock, 0));
+        vm
+    }
+}
+
+impl<O: Write> VM<O> {
+    pub fn interpret(mut self) -> Result<O, InterpretResult> {
+        self.run().map(|_| self.print_output)
+    }
+
+    fn run(&mut self) -> Result<(), InterpretResult> {
         loop {
             // Safety: Initially, self.ip is zero, so it points to an opcode in self.chunk.
             //         Each time we execute the loop we ensure that self.ip again points to an opcode.
@@ -59,14 +85,14 @@ impl VM {
                     if self.frames.is_empty() {
                         // Reached end of program.
                         self.stack.pop();
-                        return Ok(value);
+                        return Ok(());
                     } else {
                         self.stack.truncate(frame.get_slots());
                         self.stack.push(value);
                     }
                 }
                 OpCode::OpPrint => {
-                    println!("{}", self.stack.pop().unwrap());
+                    let _ = write!(self.print_output, "{}", self.stack.pop().unwrap());
                 }
                 OpCode::OpPop => {
                     self.stack.pop();
@@ -470,12 +496,12 @@ impl CallFrame {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::DerefMut;
+
     use crate::chunk::{ChunkBuilder, OpCode, Value};
     use crate::function::{FunctionBuilder, FunctionType};
     use crate::intern_string::SymbolTable;
     use crate::vm::VM;
-
-    use std::ops::DerefMut;
 
     macro_rules! load_constant {
         ($builder:ident, $index: literal, $value:literal, $line: literal) => {{

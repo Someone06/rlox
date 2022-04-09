@@ -23,9 +23,9 @@ fn main() {
                 let scanner = Scanner::new(chars.as_slice());
                 let compiler = Parser::new(scanner.parse());
                 if let Ok((function, symbol_table)) = compiler.compile() {
-                    let mut vm = VM::new(function, symbol_table);
-                    if let Ok(value) = vm.interpret() {
-                        println!("Result: {}", value);
+                    let vm = VM::new(function, symbol_table);
+                    if vm.interpret().is_ok() {
+                        println!("Success.");
                     } else {
                         println!("Vm error failed.");
                     }
