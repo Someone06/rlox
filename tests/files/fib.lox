@@ -1,6 +1,6 @@
-//5
-//5
-//5
+//8
+//8
+//8
 fun fib(n) {
   if(n < 2) return n;
   return fib(n - 2) + fib(n - 1);
@@ -28,6 +28,6 @@ fun fib3(n) {
     return a;
 }
 
-print fib(5);
-print fib2(5);
-print fib3(5);
+print fib(6);
+print fib2(6);
+print fib3(6);
