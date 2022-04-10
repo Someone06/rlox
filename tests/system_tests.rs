@@ -45,4 +45,12 @@ macro_rules! test {
     };
 }
 
-test! {fib}
+macro_rules! tests {
+    ($($path:ident $(,)?)+) => {
+        $(
+            test!{$path}
+        )+
+    };
+}
+
+tests! {fib, shadowing}

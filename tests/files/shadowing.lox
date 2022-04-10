@@ -1,0 +1,25 @@
+//global
+//global redeclare
+//inner a
+//outer b
+//outer a
+//outer b
+
+var global = "global";
+print global;
+
+var global = "global redeclare";
+print global;
+
+{
+    var a = "outer a";
+    var b = "outer b";
+
+    {
+        var a = "inner a";
+        print a;
+        print b;
+    }
+    print a;
+    print b;
+}
