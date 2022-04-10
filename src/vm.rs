@@ -146,15 +146,17 @@ impl<O: Write> VM<O> {
                     // Safety: OpGetLocal requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let slot = unsafe { self.read_index() };
-                    let value = self.stack[slot as usize].clone();
+                    let frame = self.frames.last().unwrap();
+                    let value = self.stack[frame.get_slots() + slot as usize].clone();
                     self.stack.push(value);
                 }
                 OpCode::OpSetLocal => {
                     // Safety: OpSetLocal requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let slot = unsafe { self.read_index() };
+                    let frame = self.frames.last().unwrap();
                     let value = self.stack.last().unwrap().clone();
-                    self.stack[slot as usize] = value;
+                    self.stack[frame.get_slots() + slot as usize] = value;
                 }
                 OpCode::OpNegate => {
                     match self
@@ -296,7 +298,6 @@ impl<O: Write> VM<O> {
                     if !self.call_value(callee, arg_count) {
                         return Err(InterpretResult::RuntimeError);
                     }
-                    self.frames.pop();
                 }
             }
         }
