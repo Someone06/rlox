@@ -30,8 +30,8 @@ fn expected_result(path: &str) -> Result<String, Error> {
 
 fn test_program(file: &str) -> Result<(), Error> {
     let path = "tests/files/".to_string() + file + ".lox";
-    let output = dbg!(capture_program(path.as_str())?);
-    let expected = dbg!(expected_result(path.as_str())?);
+    let output = capture_program(path.as_str())?;
+    let expected = expected_result(path.as_str())?;
     assert_eq!(output, expected);
     Ok(())
 }
