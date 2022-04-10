@@ -448,7 +448,7 @@ impl ChunkBuilderInner {
     }
 
     pub fn build(mut self) -> Chunk {
-        if self.required_indexes == 0 {
+        if self.required_indexes == 0 && self.patch_count == 0 {
             self.chunk.finish();
             self.chunk
         } else if self.required_indexes != 0 {
@@ -456,7 +456,7 @@ impl ChunkBuilderInner {
         } else if self.patch_count != 0 {
             panic!("There are patches that still need to be applied.");
         } else {
-            panic!("Did not get the right amount of constants.");
+            unreachable!()
         }
     }
 
@@ -640,26 +640,6 @@ mod tests {
         chunk_builder.write_index(1);
         chunk_builder.add_constant(Value::Double(1.0));
         chunk_builder.write_opcode(OpCode::OpReturn, 1);
-        let _ = chunk_builder.build();
-    }
-
-    #[test]
-    #[should_panic]
-    fn not_enough_constants() {
-        let mut chunk_builder = ChunkBuilder::new();
-        chunk_builder.write_opcode(OpCode::OpConstant, 0);
-        chunk_builder.write_index(0);
-        let _ = chunk_builder.build();
-    }
-
-    #[test]
-    #[should_panic]
-    fn too_many_constants() {
-        let mut chunk_builder = ChunkBuilder::new();
-        chunk_builder.write_opcode(OpCode::OpConstant, 0);
-        chunk_builder.write_index(0);
-        chunk_builder.add_constant(Value::Double(0.0));
-        chunk_builder.add_constant(Value::Double(1.0));
         let _ = chunk_builder.build();
     }
 
