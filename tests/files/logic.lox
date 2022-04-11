@@ -1,0 +1,11 @@
+//false
+//a
+//true
+
+fun p(v) {
+    print v;
+    return true;
+}
+
+print false and p("a");
+print false or p("a");
