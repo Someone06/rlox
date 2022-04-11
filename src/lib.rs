@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Write;
 
 use crate::compile::Parser;
 use crate::scanner::Scanner;
@@ -12,19 +12,15 @@ mod scanner;
 mod tokens;
 mod vm;
 
-fn read_file(path: &str) -> Result<String, Error> {
-    let path = std::path::Path::new(path);
-    let mut file = std::fs::File::open(path).map_err(|_| Error::IO)?;
-    let mut code = String::new();
-    file.read_to_string(&mut code).map_err(|_| Error::IO)?;
-    Ok(code)
-}
-
 #[derive(Debug)]
 pub enum Error {
     IO,
     Compile,
     Run,
+}
+
+fn read_file(path: &str) -> Result<String, Error> {
+    std::fs::read_to_string(path).map_err(|_| Error::IO)
 }
 
 pub fn run_program<W: Write>(path: &str, write: W) -> Result<W, Error> {
