@@ -346,7 +346,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             {
                 self.add_local(name);
             } else {
-                self.error("Already declared a variable wiht this name in this scope.");
+                self.error("Already declared a variable with this name in this scope.");
             }
         }
     }
@@ -873,7 +873,7 @@ impl<'a> Compiler<'a> {
         self.locals
             .iter()
             .rev()
-            .take_while(|l| l.get_depth() != -1 && l.get_depth() < self.scope_depth as isize)
+            .take_while(|l| l.get_depth() == -1 || l.get_depth() >= self.scope_depth as isize)
             .any(|l| name.get_lexme() == l.get_name().get_lexme())
     }
 
