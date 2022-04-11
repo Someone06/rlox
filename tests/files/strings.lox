@@ -1,0 +1,19 @@
+//Hello
+//Hello
+//Hello World
+//Hello World
+//true
+//true
+
+var a = "Hello";
+var b = " ";
+var c = "World";
+var d = a + b + c;
+var e = a + " " + c;
+
+print "Hello";
+print a;
+print d;
+print e;
+print a == "Hello";
+print d == e;
