@@ -485,7 +485,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn string(&mut self) {
-        let intern = self.symbol_table.intern(self.previous.get_lexme_string());
+        let lexme = self.previous.get_lexme();
+        let string = lexme[1..lexme.len() - 1].iter().collect::<String>();
+        let intern = self.symbol_table.intern(string);
         self.emit_constant(Value::String(intern));
     }
 

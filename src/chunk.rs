@@ -148,12 +148,7 @@ impl std::fmt::Display for Value {
         let s = match &self {
             Value::Bool(b) => b.to_string(),
             Value::Double(f) => f.to_string(),
-            Value::String(s) => {
-                let mut s = s.to_string();
-                s.remove(s.len() - 1);
-                s.remove(0);
-                s
-            }
+            Value::String(s) => s.to_string(),
             Value::Function(f) => f.to_string(),
             Value::NativeFunction(_) => String::from("<native fn>"),
             Value::Nil => String::from("Nil"),
