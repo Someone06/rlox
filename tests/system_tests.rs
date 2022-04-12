@@ -53,4 +53,4 @@ macro_rules! tests {
     };
 }
 
-tests! {strings, shadowing, fib, logic}
+tests! {strings, shadowing, fib, logic, loops}
