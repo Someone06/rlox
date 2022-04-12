@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use crate::chunk::{OpCode, Value};
-use crate::function::{clock, Function, NativeFunction};
+use crate::function::{clock, Closure, Function, NativeFunction};
 use crate::intern_string::{Symbol, SymbolTable};
 
 #[derive(PartialEq, Eq, Debug)]
@@ -20,7 +20,7 @@ pub struct VM<O: Write> {
 }
 
 impl VM<std::io::Stdout> {
-    pub fn new(function: Function, symbol_table: SymbolTable) -> Self {
+    pub fn new(closure: Closure, symbol_table: SymbolTable) -> Self {
         let mut vm = VM {
             stack: Vec::new(),
             symbol_table,
@@ -29,15 +29,15 @@ impl VM<std::io::Stdout> {
             print_output: std::io::stdout(),
         };
 
-        vm.stack.push(Value::Function(function.clone()));
-        vm.call(function, 0);
+        vm.stack.push(Value::Closure(closure.clone()));
+        vm.call(closure, 0);
         vm.define_native(String::from("clock"), NativeFunction::new(clock, 0));
         vm
     }
 }
 
 impl<O: Write> VM<O> {
-    pub fn with_write(function: Function, symbol_table: SymbolTable, write: O) -> Self {
+    pub fn with_write(closure: Closure, symbol_table: SymbolTable, write: O) -> Self {
         let mut vm = VM {
             stack: Vec::new(),
             symbol_table,
@@ -46,8 +46,8 @@ impl<O: Write> VM<O> {
             print_output: write,
         };
 
-        vm.stack.push(Value::Function(function.clone()));
-        vm.call(function, 0);
+        vm.stack.push(Value::Closure(closure.clone()));
+        vm.call(closure, 0);
         vm.define_native(String::from("clock"), NativeFunction::new(clock, 0));
         vm
     }
@@ -72,7 +72,7 @@ impl<O: Write> VM<O> {
             #[cfg(debug_assertions)]
             unsafe {
                 let frame = self.frames.last().unwrap();
-                let chunk = frame.get_function().get_chunk();
+                let chunk = frame.get_closure().get_function().get_chunk();
                 let ip = frame.get_ip();
                 let _ = chunk.print_disassemble_instruction_unsafe(ip - 1);
             }
@@ -299,13 +299,28 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
+                OpCode::OpClosure => {
+                    // Safety: We know that OpClosure takes one arguments to which self.ip points,
+                    //         because it is incremented after reading this opcode.
+                    //         Also self.ip gets incremented after reading the constant so it will
+                    //         point to the next opcode after this.
+                    let function = unsafe { self.read_constant() };
+
+                    if let Value::Function(function) = function {
+                        let closure = Closure::new(function.clone());
+                        self.stack.push(Value::Closure(closure));
+                    } else {
+                        panic!("Expected a function value.");
+                    }
+                }
             }
         }
     }
 
     fn call_value(&mut self, callee: Value, arg_count: u8) -> bool {
         match callee {
-            Value::Function(fun) => self.call(fun, arg_count),
+            Value::Function(fun) => unreachable!("Functions are always wrapped in closures."),
+            Value::Closure(closure) => self.call(closure, arg_count),
             Value::NativeFunction(fun) => {
                 if arg_count as usize == fun.get_arity() {
                     let args = &self.stack[self.stack.len() - arg_count as usize..];
@@ -333,16 +348,16 @@ impl<O: Write> VM<O> {
         }
     }
 
-    fn call(&mut self, function: Function, arg_count: u8) -> bool {
-        if arg_count as usize == function.get_arity() {
-            let frame = CallFrame::new(function, 0, self.stack.len() - arg_count as usize - 1);
+    fn call(&mut self, closure: Closure, arg_count: u8) -> bool {
+        if arg_count as usize == closure.get_function().get_arity() {
+            let frame = CallFrame::new(closure, 0, self.stack.len() - arg_count as usize - 1);
             self.frames.push(frame);
             true
         } else {
             self.runtime_error(
                 format!(
                     "Expected {} arguments, but got {}.",
-                    function.get_arity(),
+                    closure.get_function().get_arity(),
                     arg_count
                 )
                 .as_str(),
@@ -389,7 +404,7 @@ impl<O: Write> VM<O> {
     /// self.chunk.
     unsafe fn read_index(&mut self) -> u8 {
         let frame = self.frames.last_mut().unwrap();
-        let chunk = frame.get_function().get_chunk();
+        let chunk = frame.get_closure().get_function().get_chunk();
         let ip = frame.get_ip();
         let code_unit = chunk.get_code_unit(ip);
         frame.inc_ip(1);
@@ -400,7 +415,7 @@ impl<O: Write> VM<O> {
     /// consisting of two consecutive indexes in self.chunk.
     unsafe fn read_short(&mut self) -> u16 {
         let frame = self.frames.last_mut().unwrap();
-        let chunk = frame.get_function().get_chunk();
+        let chunk = frame.get_closure().get_function().get_chunk();
         let ip = frame.get_ip();
         let code_unit_high = chunk.get_code_unit(ip);
         let code_unit_low = chunk.get_code_unit(ip + 1);
@@ -416,7 +431,7 @@ impl<O: Write> VM<O> {
     unsafe fn read_constant(&mut self) -> &Value {
         let index = self.read_index();
         let frame = self.frames.last().unwrap();
-        let chunk = frame.get_function().get_chunk();
+        let chunk = frame.get_closure().get_function().get_chunk();
         chunk.get_value_at_index(index)
     }
 
@@ -424,7 +439,7 @@ impl<O: Write> VM<O> {
     ///         self.chunk.
     unsafe fn read_opcode(&mut self) -> OpCode {
         let frame = self.frames.last_mut().unwrap();
-        let chunk = frame.get_function().get_chunk();
+        let chunk = frame.get_closure().get_function().get_chunk();
         let ip = frame.get_ip();
         let code_unit = chunk.get_code_unit(ip);
         frame.inc_ip(1);
@@ -433,7 +448,7 @@ impl<O: Write> VM<O> {
 
     fn runtime_error(&mut self, message: &str) {
         for frame in self.frames.iter().rev() {
-            let function = frame.get_function();
+            let function = frame.get_closure().get_function();
             let ip = frame.get_ip() - 1;
             let name = match function.get_name() {
                 Some(name) => name.as_str(),
@@ -457,22 +472,18 @@ impl<O: Write> VM<O> {
 }
 
 struct CallFrame {
-    function: Function,
+    closure: Closure,
     ip: usize,
     slots: usize,
 }
 
 impl CallFrame {
-    pub fn new(function: Function, ip: usize, slots: usize) -> Self {
-        Self {
-            function,
-            ip,
-            slots,
-        }
+    pub fn new(closure: Closure, ip: usize, slots: usize) -> Self {
+        Self { closure, ip, slots }
     }
 
-    pub fn get_function(&self) -> &Function {
-        &self.function
+    pub fn get_closure(&self) -> &Closure {
+        &self.closure
     }
     pub fn get_ip(&self) -> usize {
         self.ip

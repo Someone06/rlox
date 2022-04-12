@@ -170,6 +170,7 @@ impl DerefMut for FunctionBuilder {
 pub enum FunctionType {
     Function,
     Script,
+    Closure,
 }
 
 impl Display for FunctionType {
@@ -221,4 +222,19 @@ pub fn clock(_: &[Value]) -> Value {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("Time went backwards");
     Value::Double(since_the_epoch.as_secs_f64())
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Closure {
+    function: Function,
+}
+
+impl Closure {
+    pub fn new(function: Function) -> Self {
+        Closure { function }
+    }
+
+    pub fn get_function(&self) -> &Function {
+        &self.function
+    }
 }

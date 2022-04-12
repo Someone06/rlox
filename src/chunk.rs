@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use crate::function::{Function, NativeFunction};
+use crate::function::{Closure, Function, NativeFunction};
 use crate::intern_string::Symbol;
 
 /// This enum represents all opcodes, that is the instruction set of the virtual machine.
@@ -36,6 +36,7 @@ pub enum OpCode {
     OpJumpIfFalse,
     OpLoop,
     OpCall,
+    OpClosure,
 }
 
 struct IndexesPerOpCode {
@@ -70,6 +71,7 @@ impl IndexesPerOpCode {
             OpCode::OpJumpIfFalse => 2,
             OpCode::OpLoop => 2,
             OpCode::OpCall => 1,
+            OpCode::OpClosure => 1,
         };
 
         IndexesPerOpCode { map }
@@ -134,6 +136,7 @@ pub enum Value {
     String(Symbol),
     Function(Function),
     NativeFunction(NativeFunction),
+    Closure(Closure),
     Nil,
 }
 
@@ -151,6 +154,7 @@ impl std::fmt::Display for Value {
             Value::String(s) => s.to_string(),
             Value::Function(f) => f.to_string(),
             Value::NativeFunction(_) => String::from("<native fn>"),
+            Value::Closure(c) => c.get_function().to_string(),
             Value::Nil => String::from("Nil"),
         };
 
@@ -326,6 +330,7 @@ impl Chunk {
                 self.jump_instruction(opcode, offset, 1, writer)
             }
             OpCode::OpLoop => self.jump_instruction(opcode, offset, -1, writer),
+            OpCode::OpClosure => self.byte_instruction(opcode, offset, writer),
         }
     }
 

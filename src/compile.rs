@@ -2,7 +2,7 @@ use std::ops::DerefMut;
 
 use crate::chunk::OpCode::OpPop;
 use crate::chunk::{ChunkBuilder, OpCode, Patch, Value};
-use crate::function::{Function, FunctionBuilder, FunctionType};
+use crate::function::{Closure, Function, FunctionBuilder, FunctionType};
 use crate::intern_string::SymbolTable;
 use crate::tokens::{Token, TokenType};
 
@@ -40,7 +40,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         parser
     }
 
-    pub fn compile(mut self) -> Result<(Function, SymbolTable), ()> {
+    pub fn compile(mut self) -> Result<(Closure, SymbolTable), ()> {
         while !self.matches(TokenType::EOF) {
             self.declaration();
         }
@@ -50,7 +50,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         if self.had_error {
             Err(())
         } else {
-            Ok((function, self.symbol_table))
+            Ok((Closure::new(function), self.symbol_table))
         }
     }
 }
@@ -262,7 +262,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.block();
 
         let function = self.end_compile();
-        self.emit_constant(Value::Function(function));
+        self.emit_opcode(OpCode::OpClosure);
+        let index = self.make_constant(Value::Function(function));
+        self.emit_index(index);
     }
 
     fn call(&mut self) {
