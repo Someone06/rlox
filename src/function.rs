@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
@@ -318,20 +319,41 @@ impl PartialEq for UpvalueLocation {
 impl Eq for UpvalueLocation {}
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct ObjUpvalue {
+struct ObjUpvalueInner {
     location: UpvalueLocation,
+}
+
+impl ObjUpvalueInner {
+    fn new(location: UpvalueLocation) -> Self {
+        ObjUpvalueInner { location }
+    }
+
+    fn get_location(&self) -> &UpvalueLocation {
+        &self.location
+    }
+
+    fn set_location(&mut self, location: UpvalueLocation) {
+        self.location = location;
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ObjUpvalue {
+    inner: Rc<RefCell<ObjUpvalueInner>>,
 }
 
 impl ObjUpvalue {
     pub fn new(location: UpvalueLocation) -> Self {
-        ObjUpvalue { location }
+        ObjUpvalue {
+            inner: Rc::new(RefCell::new(ObjUpvalueInner::new(location))),
+        }
     }
 
-    pub fn get_location(&self) -> &UpvalueLocation {
-        &self.location
+    pub fn get_location(&self) -> UpvalueLocation {
+        self.inner.deref().borrow().get_location().clone()
     }
 
     pub fn set_location(&mut self, location: UpvalueLocation) {
-        self.location = location;
+        self.inner.deref().borrow_mut().set_location(location);
     }
 }

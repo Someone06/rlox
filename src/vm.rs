@@ -16,6 +16,7 @@ pub struct VM<O: Write> {
     stack: Vec<Value>,
     symbol_table: SymbolTable,
     globals: HashMap<Symbol, Value>,
+    open_upvalues: Vec<ObjUpvalue>,
     print_output: O,
 }
 
@@ -26,6 +27,7 @@ impl VM<std::io::Stdout> {
             symbol_table,
             globals: HashMap::new(),
             frames: Vec::new(),
+            open_upvalues: Vec::new(),
             print_output: std::io::stdout(),
         };
 
@@ -43,6 +45,7 @@ impl<O: Write> VM<O> {
             symbol_table,
             globals: HashMap::new(),
             frames: Vec::new(),
+            open_upvalues: Vec::new(),
             print_output: write,
         };
 
@@ -81,6 +84,7 @@ impl<O: Write> VM<O> {
                 OpCode::OpReturn => {
                     let value = self.stack.pop().unwrap();
                     let frame = self.frames.pop().unwrap();
+                    self.close_upvalues(frame.get_slots());
 
                     if self.frames.is_empty() {
                         // Reached end of program.
@@ -163,11 +167,7 @@ impl<O: Write> VM<O> {
                     //         into the chunk and the chunk ensures that it is written.
                     let slot = unsafe { self.read_index() } as usize;
                     let frame = self.frames.last().unwrap();
-                    let location = frame
-                        .get_closure()
-                        .get_upvalue_at(slot)
-                        .get_location()
-                        .clone();
+                    let location = frame.get_closure().get_upvalue_at(slot).get_location();
                     let upvalue = ObjUpvalue::new(location);
                     self.stack.push(Value::Upvalue(upvalue));
                 }
@@ -342,11 +342,7 @@ impl<O: Write> VM<O> {
                                 let location = frame.get_slots() + index;
                                 UpvalueLocation::Stack(location)
                             } else {
-                                frame
-                                    .get_closure()
-                                    .get_upvalue_at(index)
-                                    .get_location()
-                                    .clone()
+                                frame.get_closure().get_upvalue_at(index).get_location()
                             };
 
                             let upvalue = self.capture_upvalue(location);
@@ -358,14 +354,50 @@ impl<O: Write> VM<O> {
                         panic!("Expected a function value.");
                     }
                 }
-                OpCode::OpCloseUpvalue => todo!(),
+                OpCode::OpCloseUpvalue => {
+                    self.close_upvalues(self.stack.len() - 1);
+                    self.stack.pop();
+                }
             }
         }
     }
 
     fn capture_upvalue(&mut self, location: UpvalueLocation) -> ObjUpvalue {
-        let upvalue = ObjUpvalue::new(location);
-        upvalue
+        if let Some(upvalue) = self
+            .open_upvalues
+            .iter()
+            .rev()
+            .find(|v| v.get_location() == location)
+            .cloned()
+        {
+            upvalue
+        } else {
+            let upvalue = ObjUpvalue::new(location);
+            self.open_upvalues.push(upvalue.clone());
+            upvalue
+        }
+    }
+
+    fn close_upvalues(&mut self, last: usize) {
+        // Should use Vec::drain_filter(...) here, but that's nightly-only at the time of writing.
+        let mut i: usize = 0;
+        while i < self.open_upvalues.len() {
+            if let UpvalueLocation::Stack(s) = self.open_upvalues[i].get_location() {
+                if s >= last {
+                    let mut upvalue = self.open_upvalues.remove(i);
+                    if let UpvalueLocation::Stack(index) = upvalue.get_location().clone() {
+                        let val = self.stack[index].clone();
+                        upvalue.set_location(UpvalueLocation::Heap(std::rc::Rc::new(val)));
+                    } else {
+                        panic!("Expected upvalue to be be located on stack.");
+                    }
+                } else {
+                    i += 1;
+                }
+            } else {
+                panic!("Expected location to be on stack!");
+            }
+        }
     }
 
     fn call_value(&mut self, callee: Value, arg_count: u8) -> bool {
