@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::io::Write;
+use std::panic::Location;
 
+use crate::chunk::Value::Upvalue;
 use crate::chunk::{OpCode, Value};
-use crate::function::{clock, Closure, Function, NativeFunction};
+use crate::function::{clock, Closure, Function, NativeFunction, ObjUpvalue, UpvalueLocation};
 use crate::intern_string::{Symbol, SymbolTable};
 
 #[derive(PartialEq, Eq, Debug)]
@@ -158,6 +160,30 @@ impl<O: Write> VM<O> {
                     let value = self.stack.last().unwrap().clone();
                     self.stack[frame.get_slots() + slot as usize] = value;
                 }
+                OpCode::OpGetUpvalue => {
+                    // Safety: OpGetUpvalue requires a index. The index is written by the compiler
+                    //         into the chunk and the chunk ensures that it is written.
+                    let slot = unsafe { self.read_index() } as usize;
+                    let frame = self.frames.last().unwrap();
+                    let location = frame
+                        .get_closure()
+                        .get_upvalue_at(slot)
+                        .get_location()
+                        .clone();
+                    let upvalue = ObjUpvalue::new(location);
+                    self.stack.push(Value::Upvalue(upvalue));
+                }
+                OpCode::OpSetUpvalue => {
+                    // Safety: OpGetUpvalue requires a index. The index is written by the compiler
+                    //         into the chunk and the chunk ensures that it is written.
+                    let slot = unsafe { self.read_index() } as usize;
+                    let location = UpvalueLocation::Stack(self.stack.len() - 1);
+                    let frame = self.frames.last_mut().unwrap();
+                    frame
+                        .get_closure_mut()
+                        .get_upvalue_at_mut(slot)
+                        .set_location(location);
+                }
                 OpCode::OpNegate => {
                     match self
                         .stack
@@ -307,7 +333,28 @@ impl<O: Write> VM<O> {
                     let function = unsafe { self.read_constant() };
 
                     if let Value::Function(function) = function {
-                        let closure = Closure::new(function.clone());
+                        let mut closure = Closure::new(function.clone());
+                        let count = closure.upvalue_count();
+
+                        for _ in 0..count {
+                            let is_local = unsafe { self.read_index() } != 0;
+                            let index = unsafe { self.read_index() } as usize;
+                            let frame = self.frames.last_mut().unwrap();
+                            let location = if is_local {
+                                let location = frame.get_slots() + index;
+                                UpvalueLocation::Stack(location)
+                            } else {
+                                frame
+                                    .get_closure()
+                                    .get_upvalue_at(index)
+                                    .get_location()
+                                    .clone()
+                            };
+
+                            let upvalue = self.capture_upvalue(location);
+                            closure.push_upvalue(upvalue);
+                        }
+
                         self.stack.push(Value::Closure(closure));
                     } else {
                         panic!("Expected a function value.");
@@ -315,6 +362,11 @@ impl<O: Write> VM<O> {
                 }
             }
         }
+    }
+
+    fn capture_upvalue(&mut self, location: UpvalueLocation) -> ObjUpvalue {
+        let upvalue = ObjUpvalue::new(location);
+        upvalue
     }
 
     fn call_value(&mut self, callee: Value, arg_count: u8) -> bool {
@@ -484,6 +536,10 @@ impl CallFrame {
 
     pub fn get_closure(&self) -> &Closure {
         &self.closure
+    }
+
+    pub fn get_closure_mut(&mut self) -> &mut Closure {
+        &mut self.closure
     }
     pub fn get_ip(&self) -> usize {
         self.ip

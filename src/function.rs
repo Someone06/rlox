@@ -2,7 +2,9 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
+use crate::chunk::OpCode::OpAdd;
 use crate::chunk::{Chunk, ChunkBuilder, Value};
+use crate::compile::Upvalue;
 use crate::intern_string::Symbol;
 
 pub struct Function {
@@ -10,8 +12,14 @@ pub struct Function {
 }
 
 impl Function {
-    fn new(name: Option<Symbol>, arity: usize, chunk: Chunk, kind: FunctionType) -> Self {
-        let inner = FunctionInner::new(name, arity, chunk, kind);
+    fn new(
+        name: Option<Symbol>,
+        arity: usize,
+        chunk: Chunk,
+        upvalue_count: usize,
+        kind: FunctionType,
+    ) -> Self {
+        let inner = FunctionInner::new(name, arity, chunk, upvalue_count, kind);
         Function {
             inner: Rc::new(inner),
         }
@@ -27,6 +35,10 @@ impl Function {
 
     pub fn get_chunk(&self) -> &Chunk {
         self.inner.get_chunk()
+    }
+
+    pub fn get_upvalue_count(&self) -> usize {
+        self.inner.get_upvalue_count()
     }
 
     pub fn get_kind(&self) -> FunctionType {
@@ -67,15 +79,23 @@ pub struct FunctionInner {
     name: Option<Symbol>,
     chunk: Chunk,
     kind: FunctionType,
+    upvalue_count: usize,
 }
 
 impl FunctionInner {
-    fn new(name: Option<Symbol>, arity: usize, chunk: Chunk, kind: FunctionType) -> Self {
+    fn new(
+        name: Option<Symbol>,
+        arity: usize,
+        chunk: Chunk,
+        upvalue_count: usize,
+        kind: FunctionType,
+    ) -> Self {
         Self {
             arity,
             name,
             chunk,
             kind,
+            upvalue_count,
         }
     }
 
@@ -94,6 +114,10 @@ impl FunctionInner {
     fn get_kind(&self) -> FunctionType {
         self.kind
     }
+
+    fn get_upvalue_count(&self) -> usize {
+        self.upvalue_count
+    }
 }
 
 impl std::fmt::Display for FunctionInner {
@@ -111,6 +135,7 @@ pub struct FunctionBuilder {
     arity: usize,
     kind: FunctionType,
     builder: ChunkBuilder,
+    upvalue_count: usize,
 }
 
 impl FunctionBuilder {
@@ -120,6 +145,7 @@ impl FunctionBuilder {
             arity,
             kind,
             builder: ChunkBuilder::new(),
+            upvalue_count: 0,
         }
     }
 
@@ -147,8 +173,22 @@ impl FunctionBuilder {
         self.name = Some(name);
     }
 
+    pub fn get_upvalue_count(&self) -> usize {
+        self.upvalue_count
+    }
+
+    pub fn inc_upvalue_count(&mut self) {
+        self.upvalue_count += 1;
+    }
+
     pub fn build(self) -> Function {
-        Function::new(self.name, self.arity, self.builder.build(), self.kind)
+        Function::new(
+            self.name,
+            self.arity,
+            self.builder.build(),
+            self.upvalue_count,
+            self.kind,
+        )
     }
 }
 
@@ -227,14 +267,73 @@ pub fn clock(_: &[Value]) -> Value {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Closure {
     function: Function,
+    upvalues: Vec<ObjUpvalue>,
 }
 
 impl Closure {
     pub fn new(function: Function) -> Self {
-        Closure { function }
+        Closure {
+            function,
+            upvalues: Vec::new(),
+        }
     }
 
     pub fn get_function(&self) -> &Function {
         &self.function
+    }
+
+    pub fn push_upvalue(&mut self, value: ObjUpvalue) {
+        self.upvalues.push(value);
+    }
+
+    pub fn get_upvalue_at(&self, index: usize) -> &ObjUpvalue {
+        &self.upvalues[index]
+    }
+
+    pub fn get_upvalue_at_mut(&mut self, index: usize) -> &mut ObjUpvalue {
+        &mut self.upvalues[index]
+    }
+
+    pub fn upvalue_count(&self) -> usize {
+        self.function.get_upvalue_count()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum UpvalueLocation {
+    Stack(usize),
+    Heap(Rc<Value>),
+}
+
+impl PartialEq for UpvalueLocation {
+    fn eq(&self, other: &Self) -> bool {
+        if let (UpvalueLocation::Stack(a), UpvalueLocation::Stack(b)) = (&self, &other) {
+            a == b
+        } else if let (UpvalueLocation::Heap(a), UpvalueLocation::Heap(b)) = (&self, &other) {
+            Rc::ptr_eq(a, b)
+        } else {
+            false
+        }
+    }
+}
+
+impl Eq for UpvalueLocation {}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ObjUpvalue {
+    location: UpvalueLocation,
+}
+
+impl ObjUpvalue {
+    pub fn new(location: UpvalueLocation) -> Self {
+        ObjUpvalue { location }
+    }
+
+    pub fn get_location(&self) -> &UpvalueLocation {
+        &self.location
+    }
+
+    pub fn set_location(&mut self, location: UpvalueLocation) {
+        self.location = location;
     }
 }

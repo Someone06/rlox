@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use crate::function::{Closure, Function, NativeFunction};
+use crate::function::{Closure, Function, NativeFunction, ObjUpvalue};
 use crate::intern_string::Symbol;
 
 /// This enum represents all opcodes, that is the instruction set of the virtual machine.
@@ -32,6 +32,8 @@ pub enum OpCode {
     OpSetGlobal,
     OpGetLocal,
     OpSetLocal,
+    OpGetUpvalue,
+    OpSetUpvalue,
     OpJump,
     OpJumpIfFalse,
     OpLoop,
@@ -67,6 +69,8 @@ impl IndexesPerOpCode {
             OpCode::OpSetGlobal => 1,
             OpCode::OpGetLocal => 1,
             OpCode::OpSetLocal => 1,
+            OpCode::OpGetUpvalue => 1,
+            OpCode::OpSetUpvalue => 1,
             OpCode::OpJump => 2,
             OpCode::OpJumpIfFalse => 2,
             OpCode::OpLoop => 2,
@@ -137,6 +141,7 @@ pub enum Value {
     Function(Function),
     NativeFunction(NativeFunction),
     Closure(Closure),
+    Upvalue(ObjUpvalue),
     Nil,
 }
 
@@ -155,6 +160,7 @@ impl std::fmt::Display for Value {
             Value::Function(f) => f.to_string(),
             Value::NativeFunction(_) => String::from("<native fn>"),
             Value::Closure(c) => c.get_function().to_string(),
+            Value::Upvalue(v) => "upvalue".to_string(),
             Value::Nil => String::from("Nil"),
         };
 
@@ -307,9 +313,11 @@ impl Chunk {
             | OpCode::OpDefineGlobal
             | OpCode::OpGetGlobal
             | OpCode::OpSetGlobal => self.constant_instruction(opcode, offset, writer),
-            OpCode::OpGetLocal | OpCode::OpSetLocal | OpCode::OpCall => {
-                self.byte_instruction(opcode, offset, writer)
-            }
+            OpCode::OpGetLocal
+            | OpCode::OpSetLocal
+            | OpCode::OpGetUpvalue
+            | OpCode::OpSetUpvalue
+            | OpCode::OpCall => self.byte_instruction(opcode, offset, writer),
             OpCode::OpReturn
             | OpCode::OpPrint
             | OpCode::OpPop

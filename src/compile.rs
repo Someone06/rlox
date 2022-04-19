@@ -265,6 +265,17 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.emit_opcode(OpCode::OpClosure);
         let index = self.make_constant(Value::Function(function));
         self.emit_index(index);
+
+        self.current_compiler()
+            .get_upvalues()
+            .iter()
+            .map(|v| (v.is_local() as u8, v.get_index()))
+            .collect::<Vec<(u8, u8)>>()
+            .iter()
+            .for_each(|(l, i)| {
+                self.emit_index(*l);
+                self.emit_index(*i)
+            });
     }
 
     fn call(&mut self) {
@@ -454,8 +465,13 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         let (get, set) = if arg != -1 {
             (OpCode::OpGetLocal, OpCode::OpSetLocal)
         } else {
-            arg = self.identifier_constant(name.get_lexme_string()) as isize;
-            (OpCode::OpGetGlobal, OpCode::OpSetGlobal)
+            arg = self.resolve_upvalue(self.compilers.len() - 1, &name);
+            if arg != -1 {
+                (OpCode::OpGetUpvalue, OpCode::OpSetUpvalue)
+            } else {
+                arg = self.identifier_constant(name.get_lexme_string()) as isize;
+                (OpCode::OpGetGlobal, OpCode::OpSetGlobal)
+            }
         };
 
         if can_assign && self.matches(TokenType::Equal) {
@@ -466,6 +482,37 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
 
         self.emit_index(arg as u8);
+    }
+
+    fn resolve_upvalue(&mut self, depth: usize, token: &Token) -> isize {
+        if depth >= 1 {
+            let next = depth - 1;
+            let c = &self.compilers[next];
+            let (local, _) = c.resolve(token);
+            if local != -1 {
+                self.add_upvalue(depth, local as u8, true)
+            } else {
+                let upvalue = self.resolve_upvalue(next, token);
+                if upvalue != -1 {
+                    self.add_upvalue(depth, upvalue as u8, false)
+                } else {
+                    -1
+                }
+            }
+        } else {
+            -1
+        }
+    }
+
+    fn add_upvalue(&mut self, compiler_index: usize, index: u8, is_local: bool) -> isize {
+        let upvalue = Upvalue::new(index, is_local);
+        match self.compilers[compiler_index].add_upvalue(upvalue) {
+            Some(i) => i as isize,
+            None => {
+                self.error("Too many closures variables in function.");
+                0
+            }
+        }
     }
 
     fn number(&mut self) {
@@ -830,6 +877,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
 struct Compiler<'a> {
     function_builder: FunctionBuilder,
     locals: Vec<Local<'a>>,
+    upvalues: Vec<Upvalue>,
     scope_depth: usize,
 }
 
@@ -840,6 +888,7 @@ impl<'a> Compiler<'a> {
         Compiler {
             function_builder: FunctionBuilder::new(None, 0, FunctionType::Script),
             locals: vec![local],
+            upvalues: Vec::new(),
             scope_depth: 0,
         }
     }
@@ -909,6 +958,26 @@ impl<'a> Compiler<'a> {
         &mut self.function_builder
     }
 
+    fn get_upvalues(&self) -> &Vec<Upvalue> {
+        &self.upvalues
+    }
+
+    fn add_upvalue(&mut self, upvalue: Upvalue) -> Option<usize> {
+        let value = self.upvalues.iter().enumerate().find(|(_, u)| {
+            u.get_index() == upvalue.get_index() && u.is_local() == upvalue.is_local()
+        });
+
+        if let Some((i, _)) = value {
+            Some(i)
+        } else if self.upvalues.len() == u8::MAX as usize {
+            None
+        } else {
+            self.upvalues.push(upvalue);
+            self.get_function_builder().inc_upvalue_count();
+            Some(self.upvalues.len() - 1)
+        }
+    }
+
     fn compile(self) -> Function {
         self.function_builder.build()
     }
@@ -934,5 +1003,24 @@ impl<'a> Local<'a> {
 
     fn set_depth(&mut self, depth: isize) {
         self.depth = depth;
+    }
+}
+
+pub struct Upvalue {
+    index: u8,
+    is_local: bool,
+}
+
+impl Upvalue {
+    pub fn new(index: u8, is_local: bool) -> Self {
+        Upvalue { index, is_local }
+    }
+
+    pub fn get_index(&self) -> u8 {
+        self.index
+    }
+
+    pub fn is_local(&self) -> bool {
+        self.is_local
     }
 }
