@@ -76,7 +76,7 @@ impl IndexesPerOpCode {
             OpCode::OpJumpIfFalse => 2,
             OpCode::OpLoop => 2,
             OpCode::OpCall => 1,
-            OpCode::OpClosure => todo!(),
+            OpCode::OpClosure => u8::MAX,
             OpCode::OpCloseUpvalue => 0,
 
         };
@@ -342,7 +342,7 @@ impl Chunk {
                 self.jump_instruction(opcode, offset, 1, writer)
             }
             OpCode::OpLoop => self.jump_instruction(opcode, offset, -1, writer),
-            OpCode::OpClosure => self.byte_instruction(opcode, offset, writer),
+            OpCode::OpClosure => self.closure(opcode, offset, writer),
         }
     }
 
@@ -406,6 +406,40 @@ impl Chunk {
     ) -> Result<usize, std::io::Error> {
         writeln!(writer, "{}", opcode).map(|_| offset + 1)
     }
+
+    fn closure(
+        &self,
+        opcode: OpCode,
+        offset: usize,
+        writer: &mut impl Write,
+    ) -> Result<usize, std::io::Error> {
+        let mut o = offset + 1;
+        let code_unit = self.code[o];
+        o += 1;
+
+        let index = unsafe { code_unit.get_index() };
+        let value = &self.constants[index as usize];
+        writeln!(writer, "{:-16} {:4} '{}'", opcode, index, value)?;
+
+        if let Value::Function(fun) = value {
+            for _ in 0..fun.get_upvalue_count() {
+                let is_local = unsafe { self.code[o].get_index() } != 0;
+                let index = unsafe { self.code[o + 1].get_index() };
+                let kind = if is_local { "local" } else { "upvalue" };
+                writeln!(
+                    writer,
+                    "{:04}    |{}{} {}",
+                    offset,
+                    " ".repeat(23),
+                    kind,
+                    index
+                )?;
+                o += 2;
+            }
+        }
+
+        Ok(o)
+    }
 }
 
 /// ChunkBuilder is used to incrementally build a Chunk.
@@ -429,7 +463,7 @@ impl ChunkBuilderInner {
 
     /// Returns the index of the opcode that has just been written.
     pub fn write_opcode(&mut self, opcode: OpCode, line: u32) -> usize {
-        if self.required_indexes == 0 {
+        if self.required_indexes == 0 || self.required_indexes == u8::MAX {
             self.required_indexes = self.indexes_per_op.get(opcode);
             self.chunk.write_opcode(opcode, line)
         } else {
@@ -442,7 +476,9 @@ impl ChunkBuilderInner {
     pub fn write_index(&mut self, index: u8) {
         if self.required_indexes != 0 {
             self.chunk.write_index(index);
-            self.required_indexes -= 1;
+            if self.required_indexes != u8::MAX {
+                self.required_indexes -= 1;
+            }
         } else {
             panic!("Requiring an opcode next.")
         }
