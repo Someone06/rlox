@@ -39,6 +39,7 @@ pub enum OpCode {
     OpLoop,
     OpCall,
     OpClosure,
+    OpCloseUpvalue,
 }
 
 struct IndexesPerOpCode {
@@ -75,7 +76,9 @@ impl IndexesPerOpCode {
             OpCode::OpJumpIfFalse => 2,
             OpCode::OpLoop => 2,
             OpCode::OpCall => 1,
-            OpCode::OpClosure => 1,
+            OpCode::OpClosure => todo!(),
+            OpCode::OpCloseUpvalue => 0,
+
         };
 
         IndexesPerOpCode { map }
@@ -160,7 +163,7 @@ impl std::fmt::Display for Value {
             Value::Function(f) => f.to_string(),
             Value::NativeFunction(_) => String::from("<native fn>"),
             Value::Closure(c) => c.get_function().to_string(),
-            Value::Upvalue(v) => "upvalue".to_string(),
+            Value::Upvalue(_) => "upvalue".to_string(),
             Value::Nil => String::from("Nil"),
         };
 
@@ -332,7 +335,8 @@ impl Chunk {
             | OpCode::OpDivide
             | OpCode::OpTrue
             | OpCode::OpFalse
-            | OpCode::OpNil => self.simple_instruction(opcode, offset, writer),
+            | OpCode::OpNil
+            | OpCode::OpCloseUpvalue => self.simple_instruction(opcode, offset, writer),
 
             OpCode::OpJump | OpCode::OpJumpIfFalse => {
                 self.jump_instruction(opcode, offset, 1, writer)

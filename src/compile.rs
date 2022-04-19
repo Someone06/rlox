@@ -1,6 +1,5 @@
 use std::ops::DerefMut;
 
-use crate::chunk::OpCode::OpPop;
 use crate::chunk::{ChunkBuilder, OpCode, Patch, Value};
 use crate::function::{Closure, Function, FunctionBuilder, FunctionType};
 use crate::intern_string::SymbolTable;
@@ -180,7 +179,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         if let Some(jump) = exit_jump {
             self.patch_jump(jump);
-            self.emit_opcode(OpPop);
+            self.emit_opcode(OpCode::OpPop);
         }
 
         self.end_scope();
@@ -402,8 +401,17 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn end_scope(&mut self) {
         self.current_compiler().dec_scope_depth();
-        let remove_count = self.current_compiler().remove_out_of_scope_locals();
-        (0..remove_count).for_each(|_| self.emit_opcode(OpCode::OpPop));
+        let is_captured = self.current_compiler().remove_out_of_scope_locals();
+        is_captured
+            .iter()
+            .map(|c| {
+                if *c {
+                    OpCode::OpCloseUpvalue
+                } else {
+                    OpCode::OpPop
+                }
+            })
+            .for_each(|op| self.emit_opcode(op));
     }
 
     fn expression_statement(&mut self) {
@@ -487,9 +495,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn resolve_upvalue(&mut self, depth: usize, token: &Token) -> isize {
         if depth >= 1 {
             let next = depth - 1;
-            let c = &self.compilers[next];
+            let c = &mut self.compilers[next];
             let (local, _) = c.resolve(token);
             if local != -1 {
+                c.get_local_at_mut(local as usize).set_captured(true);
                 self.add_upvalue(depth, local as u8, true)
             } else {
                 let upvalue = self.resolve_upvalue(next, token);
@@ -913,6 +922,10 @@ impl<'a> Compiler<'a> {
         self.locals.len()
     }
 
+    fn get_local_at_mut(&mut self, index: usize) -> &mut Local<'a> {
+        &mut self.locals[index]
+    }
+
     fn mark_local_initialized(&mut self) {
         if self.scope_depth > 0 {
             self.locals
@@ -930,19 +943,20 @@ impl<'a> Compiler<'a> {
             .any(|l| name.get_lexme() == l.get_name().get_lexme())
     }
 
-    fn remove_out_of_scope_locals(&mut self) -> usize {
-        let mut count: usize = 0;
+    fn remove_out_of_scope_locals(&mut self) -> Vec<bool> {
+        let mut is_captured: Vec<bool> = Vec::new();
 
         while self
             .locals
             .last()
             .map_or(false, |l| l.get_depth() > self.scope_depth as isize)
         {
+            let close_upvalue = self.locals.last().unwrap().is_captured();
+            is_captured.push(close_upvalue);
             self.locals.pop();
-            count += 1;
         }
 
-        count
+        is_captured
     }
 
     fn resolve(&self, name: &Token<'a>) -> (isize, bool) {
@@ -986,11 +1000,16 @@ impl<'a> Compiler<'a> {
 struct Local<'a> {
     name: Token<'a>,
     depth: isize,
+    is_captured: bool,
 }
 
 impl<'a> Local<'a> {
     fn new(name: Token<'a>, depth: isize) -> Self {
-        Local { name, depth }
+        Local {
+            name,
+            depth,
+            is_captured: false,
+        }
     }
 
     fn get_name(&self) -> &Token<'a> {
@@ -1003,6 +1022,14 @@ impl<'a> Local<'a> {
 
     fn set_depth(&mut self, depth: isize) {
         self.depth = depth;
+    }
+
+    fn set_captured(&mut self, is_captured: bool) {
+        self.is_captured = is_captured;
+    }
+
+    fn is_captured(&self) -> bool {
+        self.is_captured
     }
 }
 

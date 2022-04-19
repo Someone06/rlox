@@ -2,9 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use crate::chunk::OpCode::OpAdd;
 use crate::chunk::{Chunk, ChunkBuilder, Value};
-use crate::compile::Upvalue;
 use crate::intern_string::Symbol;
 
 pub struct Function {

@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::io::Write;
-use std::panic::Location;
 
-use crate::chunk::Value::Upvalue;
 use crate::chunk::{OpCode, Value};
-use crate::function::{clock, Closure, Function, NativeFunction, ObjUpvalue, UpvalueLocation};
+use crate::function::{clock, Closure, NativeFunction, ObjUpvalue, UpvalueLocation};
 use crate::intern_string::{Symbol, SymbolTable};
 
 #[derive(PartialEq, Eq, Debug)]
@@ -360,6 +358,7 @@ impl<O: Write> VM<O> {
                         panic!("Expected a function value.");
                     }
                 }
+                OpCode::OpCloseUpvalue => todo!(),
             }
         }
     }
