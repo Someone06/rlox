@@ -348,14 +348,14 @@ impl<O: Write> VM<O> {
                             let is_local = unsafe { self.read_index() } != 0;
                             let index = unsafe { self.read_index() } as usize;
                             let frame = self.frames.last_mut().unwrap();
-                            let location = if is_local {
+                            let upvalue = if is_local {
                                 let location = frame.get_slots() + index;
-                                UpvalueLocation::Stack(location)
+                                let location = UpvalueLocation::Stack(location);
+                                self.capture_upvalue(location)
                             } else {
-                                frame.get_closure().get_upvalue_at(index).get_location()
+                                frame.get_closure().get_upvalue_at(index).clone()
                             };
 
-                            let upvalue = self.capture_upvalue(location);
                             closure.push_upvalue(upvalue);
                         }
 
