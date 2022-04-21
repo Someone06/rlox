@@ -1,6 +1,5 @@
-use std::io::Read;
-
 use rlox::{run_program, Error};
+use std::io::Read;
 
 fn read_file(path: &str) -> Result<String, Error> {
     let path = std::path::Path::new(path);
@@ -54,4 +53,4 @@ macro_rules! tests {
     };
 }
 
-tests! {strings, shadowing, fib, logic, loops, make_counter, opclosure_capture_off_heap_value, closure_capture_variable}
+tests! {strings, shadowing, fib, logic, loops, make_counter, opclosure_capture_off_heap_value,closure_capture_variable, closure_test_opcloseupvalue}

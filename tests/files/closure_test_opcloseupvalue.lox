@@ -1,0 +1,13 @@
+//value
+
+var closure;
+ {
+    var value = "value";
+    fun inner() {
+        print value;
+    }
+
+    closure = inner;
+ }
+
+closure();
