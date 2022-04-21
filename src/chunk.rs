@@ -424,6 +424,7 @@ impl Chunk {
         if let Value::Function(fun) = value {
             for _ in 0..fun.get_upvalue_count() {
                 let is_local = unsafe { self.code[o].get_index() };
+                let is_local = is_local != 0;
 
                 let index = unsafe { self.code[o + 1].get_index() };
                 let kind = if is_local { "local" } else { "upvalue" };
