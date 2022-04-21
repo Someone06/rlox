@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::Write;
+use std::ops::Deref;
 
 use crate::chunk::{OpCode, Value};
 use crate::function::{clock, Closure, NativeFunction, ObjUpvalue, UpvalueLocation};
@@ -168,8 +169,11 @@ impl<O: Write> VM<O> {
                     let slot = unsafe { self.read_index() } as usize;
                     let frame = self.frames.last().unwrap();
                     let location = frame.get_closure().get_upvalue_at(slot).get_location();
-                    let upvalue = ObjUpvalue::new(location);
-                    self.stack.push(Value::Upvalue(upvalue));
+                    let value = match location {
+                        UpvalueLocation::Stack(offset) => self.stack[offset].clone(),
+                        UpvalueLocation::Heap(rc) => rc.deref().clone(),
+                    };
+                    self.stack.push(value);
                 }
                 OpCode::OpSetUpvalue => {
                     // Safety: OpGetUpvalue requires a index. The index is written by the compiler
