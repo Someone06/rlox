@@ -260,21 +260,22 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         self.block();
 
+        let upvalues = self
+            .current_compiler()
+            .get_upvalues()
+            .iter()
+            .map(|v| (v.is_local() as u8, v.get_index()))
+            .collect::<Vec<(u8, u8)>>();
+
         let function = self.end_compile();
         self.emit_opcode(OpCode::OpClosure);
         let index = self.make_constant(Value::Function(function));
         self.emit_index(index);
 
-        self.current_compiler()
-            .get_upvalues()
-            .iter()
-            .map(|v| (v.is_local() as u8, v.get_index()))
-            .collect::<Vec<(u8, u8)>>()
-            .iter()
-            .for_each(|(l, i)| {
-                self.emit_index(*l);
-                self.emit_index(*i)
-            });
+        upvalues.iter().for_each(|(l, i)| {
+            self.emit_index(*l);
+            self.emit_index(*i)
+        });
     }
 
     fn call(&mut self) {
