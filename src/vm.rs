@@ -179,12 +179,18 @@ impl<O: Write> VM<O> {
                     // Safety: OpGetUpvalue requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let slot = unsafe { self.read_index() } as usize;
-                    let location = UpvalueLocation::Stack(self.stack.len() - 1);
+                    let value = self.stack.last().unwrap().clone();
                     let frame = self.frames.last_mut().unwrap();
-                    frame
-                        .get_closure_mut()
-                        .get_upvalue_at_mut(slot)
-                        .set_location(location);
+                    if let UpvalueLocation::Stack(offset) =
+                        frame.get_closure().get_upvalue_at(slot).get_location()
+                    {
+                        self.stack[offset] = value;
+                    } else {
+                        frame
+                            .get_closure_mut()
+                            .get_upvalue_at_mut(slot)
+                            .set_location_value(value);
+                    }
                 }
                 OpCode::OpNegate => {
                     match self

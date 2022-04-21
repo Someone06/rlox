@@ -332,6 +332,10 @@ impl ObjUpvalueInner {
         &self.location
     }
 
+    fn get_location_mut(&mut self) -> &mut UpvalueLocation {
+        &mut self.location
+    }
+
     fn set_location(&mut self, location: UpvalueLocation) {
         self.location = location;
     }
@@ -351,6 +355,15 @@ impl ObjUpvalue {
 
     pub fn get_location(&self) -> UpvalueLocation {
         self.inner.deref().borrow().get_location().clone()
+    }
+
+    pub fn set_location_value(&mut self, value: Value) {
+        let mut borrow = self.inner.deref().borrow_mut();
+        let location = borrow.get_location_mut();
+        match location {
+            UpvalueLocation::Stack(_) => panic!("We assume that the location is on heap."),
+            UpvalueLocation::Heap(_) => *location = UpvalueLocation::Heap(Rc::new(value)),
+        }
     }
 
     pub fn set_location(&mut self, location: UpvalueLocation) {
