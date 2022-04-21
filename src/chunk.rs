@@ -163,7 +163,7 @@ impl std::fmt::Display for Value {
             Value::Function(f) => f.to_string(),
             Value::NativeFunction(_) => String::from("<native fn>"),
             Value::Closure(c) => c.get_function().to_string(),
-            Value::Upvalue(_) => "upvalue".to_string(),
+            Value::Upvalue(v) => "upvalue".to_string(),
             Value::Nil => String::from("Nil"),
         };
 
@@ -419,23 +419,19 @@ impl Chunk {
 
         let index = unsafe { code_unit.get_index() };
         let value = &self.constants[index as usize];
-        writeln!(writer, "{:-16} {:4} '{}'", opcode, index, value)?;
+        writeln!(writer, "{:-16}  {:4} '{}'", opcode, index, value)?;
 
         if let Value::Function(fun) = value {
             for _ in 0..fun.get_upvalue_count() {
-                let is_local = unsafe { self.code[o].get_index() } != 0;
+                let is_local = unsafe { self.code[o].get_index() };
+
                 let index = unsafe { self.code[o + 1].get_index() };
                 let kind = if is_local { "local" } else { "upvalue" };
-                writeln!(
-                    writer,
-                    "{:04}    |{}{} {}",
-                    offset,
-                    " ".repeat(23),
-                    kind,
-                    index
-                )?;
+                writeln!(writer, "{:04}    |{}{} {}", o, " ".repeat(17), kind, index)?;
                 o += 2;
             }
+        } else {
+            panic!("Expected a function value.");
         }
 
         Ok(o)
