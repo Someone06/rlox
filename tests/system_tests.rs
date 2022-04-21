@@ -54,4 +54,4 @@ macro_rules! tests {
     };
 }
 
-tests! {strings, shadowing, fib, logic, loops, make_counter, opclosure_capture_off_heap_value}
+tests! {strings, shadowing, fib, logic, loops, make_counter, opclosure_capture_off_heap_value, closure_capture_variable}
