@@ -8,6 +8,7 @@ mod chunk;
 mod compile;
 mod function;
 mod intern_string;
+mod opcodes;
 mod scanner;
 mod tokens;
 mod vm;

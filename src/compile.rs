@@ -1,8 +1,9 @@
 use std::ops::DerefMut;
 
-use crate::chunk::{ChunkBuilder, OpCode, Patch, Value};
+use crate::chunk::{ChunkBuilder, Patch, Value};
 use crate::function::{Closure, Function, FunctionBuilder, FunctionType};
 use crate::intern_string::SymbolTable;
+use crate::opcodes::OpCode;
 use crate::tokens::{Token, TokenType};
 
 macro_rules! emit_opcodes {
