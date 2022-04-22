@@ -3,8 +3,6 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use crate::function::{Closure, Function, NativeFunction, ObjUpvalue};
-use crate::intern_string::Symbol;
 use crate::opcodes::{IndexesPerOpCode, OpCode};
 use crate::value::Value;
 

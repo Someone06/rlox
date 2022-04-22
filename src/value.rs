@@ -1,4 +1,4 @@
-use crate::function::{Closure, Function, NativeFunction, ObjUpvalue};
+use crate::function::{Closure, Function, NativeFunction};
 use crate::intern_string::Symbol;
 
 /// This enum represents all constants that can be stored in the constant pool.
@@ -10,7 +10,6 @@ pub enum Value {
     Function(Function),
     NativeFunction(NativeFunction),
     Closure(Closure),
-    Upvalue(ObjUpvalue),
     Nil,
 }
 
@@ -29,7 +28,6 @@ impl std::fmt::Display for Value {
             Value::Function(f) => f.to_string(),
             Value::NativeFunction(_) => String::from("<native fn>"),
             Value::Closure(c) => c.get_function().to_string(),
-            Value::Upvalue(_) => "upvalue".to_string(),
             Value::Nil => String::from("Nil"),
         };
 

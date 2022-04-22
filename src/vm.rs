@@ -413,7 +413,7 @@ impl<O: Write> VM<O> {
 
     fn call_value(&mut self, callee: Value, arg_count: u8) -> bool {
         match callee {
-            Value::Function(fun) => unreachable!("Functions are always wrapped in closures."),
+            Value::Function(_) => unreachable!("Functions are always wrapped in closures."),
             Value::Closure(closure) => self.call(closure, arg_count),
             Value::NativeFunction(fun) => {
                 if arg_count as usize == fun.get_arity() {
