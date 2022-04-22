@@ -5,6 +5,7 @@ use crate::scanner::Scanner;
 use crate::vm::VM;
 
 mod chunk;
+mod classes;
 mod compile;
 mod function;
 mod intern_string;

@@ -58,7 +58,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
 impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn declaration(&mut self) {
-        if self.matches(TokenType::Fun) {
+        if self.matches(TokenType::Class) {
+            self.class_declaration();
+        } else if self.matches(TokenType::Fun) {
             self.function_declaration();
         } else if self.matches(TokenType::Var) {
             self.var_declaration();
@@ -280,10 +282,38 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         });
     }
 
+    fn class_declaration(&mut self) {
+        self.consume(TokenType::Identifier, "Expected class name.");
+        let name = self.identifier_constant(self.previous.get_lexme_string());
+        self.declare_variable();
+
+        self.emit_opcode(OpCode::OpClass);
+        self.emit_index(name);
+        self.define_variable(name);
+
+        self.consume(TokenType::LeftBrace, "Expected '{' before class body.");
+        self.consume(TokenType::RightBrace, "Expected '}' after class body.");
+    }
+
     fn call(&mut self) {
         let arg_count = self.argument_list();
         self.emit_opcode(OpCode::OpCall);
         self.emit_index(arg_count);
+    }
+
+    fn dot(&mut self, can_assign: bool) {
+        self.consume(TokenType::Identifier, "Expected property name after '.'.");
+        let name = self.identifier_constant(self.previous.get_lexme_string());
+
+        let opcode = if can_assign && self.matches(TokenType::Equal) {
+            self.expression();
+            OpCode::OpSetProperty
+        } else {
+            OpCode::OpGetProperty
+        };
+
+        self.emit_opcode(opcode);
+        self.emit_index(name);
     }
 
     fn argument_list(&mut self) -> u8 {
@@ -841,7 +871,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
             TokenType::LeftBrace    => ParseRule::new(None, None, Precedence::None),
             TokenType::RightBrace   => ParseRule::new(None, None, Precedence::None),
             TokenType::Comma        => ParseRule::new(None, None, Precedence::None),
-            TokenType::Dot          => ParseRule::new(None, None, Precedence::None),
+            TokenType::Dot          => ParseRule::new(None, Some(|c, can_assign| c.dot(can_assign)),Precedence::Call),
             TokenType::Minus        => ParseRule::new(Some(|c, _| c.unary()), Some(|c, _| c.binary()), Precedence::Term),
             TokenType::Plus         => ParseRule::new(None, Some(|c, _| c.binary()), Precedence::Term),
             TokenType::Semicolon    => ParseRule::new(None, None, Precedence::None),

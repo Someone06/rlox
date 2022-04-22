@@ -32,6 +32,9 @@ pub enum OpCode {
     OpCall,
     OpClosure,
     OpCloseUpvalue,
+    OpClass,
+    OpGetProperty,
+    OpSetProperty,
 }
 
 pub struct IndexesPerOpCode {
@@ -74,7 +77,9 @@ impl IndexesPerOpCode {
             OpCode::OpCall => 1,
             OpCode::OpClosure => u8::MAX,
             OpCode::OpCloseUpvalue => 0,
-
+            OpCode::OpClass => 1,
+            OpCode::OpGetProperty => 1,
+            OpCode::OpSetProperty => 1,
         };
 
         IndexesPerOpCode { map }

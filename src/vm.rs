@@ -2,10 +2,12 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
+use crate::classes::{Clazz, ClazzRef, Instance, InstanceRef};
 use crate::function::{clock, Closure, NativeFunction, ObjUpvalue, UpvalueLocation};
 use crate::intern_string::{Symbol, SymbolTable};
 use crate::opcodes::OpCode;
 use crate::value::Value;
+use crate::vm::InterpretResult::RuntimeError;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum InterpretResult {
@@ -369,6 +371,58 @@ impl<O: Write> VM<O> {
                     self.close_upvalues(self.stack.len() - 1);
                     self.stack.pop();
                 }
+                OpCode::OpClass => {
+                    // Safety: We know that OpClass takes one arguments to which self.ip points,
+                    //         because it is incremented after reading this opcode.
+                    //         Also self.ip gets incremented after reading the constant so it will
+                    //         point to the next opcode after this.
+                    let name = unsafe { self.read_string() }.clone();
+                    let clazz = ClazzRef::from(Clazz::new(name));
+                    self.stack.push(Value::Class(clazz));
+                }
+                OpCode::OpGetProperty => {
+                    // Safety: We know that OpGetProperty takes one arguments to which self.ip
+                    //         points, because it is incremented after reading this opcode.
+                    //         Also self.ip gets incremented after reading the constant so it will
+                    //         point to the next opcode after this.
+                    let name = unsafe { self.read_string() }.clone();
+                    let instance = self.stack.last().unwrap();
+                    if let Value::Instance(instance) = instance {
+                        let value = instance.get_instance().get_value(&name).cloned();
+                        match value {
+                            Some(value) => {
+                                self.stack.pop();
+                                self.stack.push(value)
+                            }
+                            None => {
+                                self.runtime_error(
+                                    format!("Undefined property '{}'.", name).as_str(),
+                                );
+                                return Err(InterpretResult::RuntimeError);
+                            }
+                        }
+                    } else {
+                        self.runtime_error("Only instances have properties.");
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
+                OpCode::OpSetProperty => {
+                    // Safety: We know that OpGetProperty takes one arguments to which self.ip
+                    //         points, because it is incremented after reading this opcode.
+                    //         Also self.ip gets incremented after reading the constant so it will
+                    //         point to the next opcode after this.
+                    let name = unsafe { self.read_string() }.clone();
+                    let value = self.stack.pop().unwrap();
+                    let instance = self.stack.pop().unwrap();
+
+                    if let Value::Instance(mut instance) = instance {
+                        instance.get_instance_mut().set_value(name, value.clone());
+                        self.stack.push(value);
+                    } else {
+                        self.runtime_error("Only instances have properties.");
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
             }
         }
     }
@@ -434,6 +488,12 @@ impl<O: Write> VM<O> {
                     );
                     false
                 }
+            }
+            Value::Class(clazz) => {
+                let instance = InstanceRef::from(clazz);
+                let len = self.stack.len();
+                self.stack[len - 1 - arg_count as usize] = Value::Instance(instance);
+                true
             }
             _ => {
                 self.runtime_error("Can only call functions and classes.");
@@ -527,6 +587,15 @@ impl<O: Write> VM<O> {
         let frame = self.frames.last().unwrap();
         let chunk = frame.get_closure().get_function().get_chunk();
         chunk.get_value_at_index(index)
+    }
+
+    /// Safety: It is only safe to call this function when self.ip is the index of an index in
+    /// self.chunk.
+    unsafe fn read_string(&mut self) -> &Symbol {
+        match self.read_constant() {
+            Value::String(s) => s,
+            _ => panic!("Expected a string value"),
+        }
     }
 
     /// Safety: It's only save to call this function when self.ip is the index of an opcode in
