@@ -9,6 +9,7 @@ mod intern_string;
 mod opcodes;
 mod scanner;
 mod tokens;
+mod value;
 mod vm;
 
 fn main() {

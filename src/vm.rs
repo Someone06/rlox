@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
-use crate::chunk::Value;
 use crate::function::{clock, Closure, NativeFunction, ObjUpvalue, UpvalueLocation};
 use crate::intern_string::{Symbol, SymbolTable};
 use crate::opcodes::OpCode;
+use crate::value::Value;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum InterpretResult {

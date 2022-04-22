@@ -1,10 +1,11 @@
 use std::ops::DerefMut;
 
-use crate::chunk::{ChunkBuilder, Patch, Value};
+use crate::chunk::{ChunkBuilder, Patch};
 use crate::function::{Closure, Function, FunctionBuilder, FunctionType};
 use crate::intern_string::SymbolTable;
 use crate::opcodes::OpCode;
 use crate::tokens::{Token, TokenType};
+use crate::value::Value;
 
 macro_rules! emit_opcodes {
         ($instance:ident, $($opcode:expr $(,)?),+ $(,)?) => {{
