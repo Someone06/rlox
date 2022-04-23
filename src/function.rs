@@ -299,6 +299,12 @@ impl Closure {
     }
 }
 
+impl Display for Closure {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.function)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum UpvalueLocation {
     Stack(usize),

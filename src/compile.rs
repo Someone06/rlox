@@ -284,6 +284,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn class_declaration(&mut self) {
         self.consume(TokenType::Identifier, "Expected class name.");
+        let class_name = self.previous.clone();
         let name = self.identifier_constant(self.previous.get_lexme_string());
         self.declare_variable();
 
@@ -291,8 +292,21 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.emit_index(name);
         self.define_variable(name);
 
+        self.named_variable(class_name, false);
         self.consume(TokenType::LeftBrace, "Expected '{' before class body.");
+        while !self.check(TokenType::RightBrace) && !self.check(TokenType::EOF) {
+            self.method();
+        }
         self.consume(TokenType::RightBrace, "Expected '}' after class body.");
+        self.emit_opcode(OpCode::OpPop);
+    }
+
+    fn method(&mut self) {
+        self.consume(TokenType::Identifier, "Expected method name.");
+        let constant = self.identifier_constant(self.previous.get_lexme_string());
+        self.function(FunctionType::Function);
+        self.emit_opcode(OpCode::OpMethod);
+        self.emit_index(constant);
     }
 
     fn call(&mut self) {

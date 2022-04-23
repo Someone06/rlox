@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
-use crate::classes::{Clazz, ClazzRef, Instance, InstanceRef};
+use crate::classes::{BoundMethod, Clazz, ClazzRef, Instance, InstanceRef};
 use crate::function::{clock, Closure, NativeFunction, ObjUpvalue, UpvalueLocation};
 use crate::intern_string::{Symbol, SymbolTable};
 use crate::opcodes::OpCode;
 use crate::value::Value;
-use crate::vm::InterpretResult::RuntimeError;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum InterpretResult {
@@ -386,18 +385,15 @@ impl<O: Write> VM<O> {
                     //         Also self.ip gets incremented after reading the constant so it will
                     //         point to the next opcode after this.
                     let name = unsafe { self.read_string() }.clone();
-                    let instance = self.stack.last().unwrap();
-                    if let Value::Instance(instance) = instance {
-                        let value = instance.get_instance().get_value(&name).cloned();
-                        match value {
-                            Some(value) => {
-                                self.stack.pop();
-                                self.stack.push(value)
-                            }
-                            None => {
-                                self.runtime_error(
-                                    format!("Undefined property '{}'.", name).as_str(),
-                                );
+                    let instance_ref = self.stack.last().unwrap();
+                    if let Value::Instance(instance_ref) = instance_ref {
+                        let value = instance_ref.get_instance().get_value(&name).cloned();
+                        if let Some(value) = value {
+                            self.stack.pop();
+                            self.stack.push(value);
+                        } else {
+                            let clazz_ref = instance_ref.get_instance().get_clazz_ref().clone();
+                            if !self.bind_method(clazz_ref, name) {
                                 return Err(InterpretResult::RuntimeError);
                             }
                         }
@@ -422,6 +418,14 @@ impl<O: Write> VM<O> {
                         self.runtime_error("Only instances have properties.");
                         return Err(InterpretResult::RuntimeError);
                     }
+                }
+                OpCode::OpMethod => {
+                    // Safety: We know that OpMethod takes one arguments to which self.ip
+                    //         points, because it is incremented after reading this opcode.
+                    //         Also self.ip gets incremented after reading the constant so it will
+                    //         point to the next opcode after this.
+                    let name = unsafe { self.read_string() }.clone();
+                    self.define_method(name);
                 }
             }
         }
@@ -465,6 +469,18 @@ impl<O: Write> VM<O> {
         }
     }
 
+    fn define_method(&mut self, name: Symbol) {
+        let method = self.stack.pop().unwrap();
+        if let Value::Closure(method) = method {
+            match self.stack.last_mut().unwrap() {
+                Value::Class(ref mut clazz) => clazz.get_clazz_mut().set_method(name, method),
+                _ => panic!("Expected a class value."),
+            }
+        } else {
+            panic!("Expected a closure.");
+        }
+    }
+
     fn call_value(&mut self, callee: Value, arg_count: u8) -> bool {
         match callee {
             Value::Function(_) => unreachable!("Functions are always wrapped in closures."),
@@ -495,10 +511,23 @@ impl<O: Write> VM<O> {
                 self.stack[len - 1 - arg_count as usize] = Value::Instance(instance);
                 true
             }
+            // TODO: Check whether cloning the closure is fine.
+            Value::BoundMethod(bound) => self.call(bound.get_closure().clone(), arg_count),
             _ => {
                 self.runtime_error("Can only call functions and classes.");
                 false
             }
+        }
+    }
+
+    fn bind_method(&mut self, clazz_ref: ClazzRef, name: Symbol) -> bool {
+        if let Some(method) = clazz_ref.get_clazz().get_method(&name) {
+            let bound = BoundMethod::new(self.stack.pop().unwrap(), method);
+            self.stack.push(Value::BoundMethod(bound));
+            true
+        } else {
+            self.runtime_error(format!("Undefined property '{}.", name).as_str());
+            false
         }
     }
 

@@ -1,4 +1,4 @@
-use crate::classes::{ClazzRef, InstanceRef};
+use crate::classes::{BoundMethod, ClazzRef, InstanceRef};
 use crate::function::{Closure, Function, NativeFunction};
 use crate::intern_string::Symbol;
 
@@ -13,6 +13,7 @@ pub enum Value {
     Closure(Closure),
     Class(ClazzRef),
     Instance(InstanceRef),
+    BoundMethod(BoundMethod),
     Nil,
 }
 
@@ -30,9 +31,10 @@ impl std::fmt::Display for Value {
             Value::String(s) => s.to_string(),
             Value::Function(f) => f.to_string(),
             Value::NativeFunction(_) => String::from("<native fn>"),
-            Value::Closure(c) => c.get_function().to_string(),
-            Value::Class(c) => format!("{}", c),
-            Value::Instance(i) => format!("{}", i),
+            Value::Closure(c) => c.to_string(),
+            Value::Class(c) => c.to_string(),
+            Value::Instance(i) => i.to_string(),
+            Value::BoundMethod(b) => b.to_string(),
             Value::Nil => String::from("Nil"),
         };
 
