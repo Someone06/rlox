@@ -512,7 +512,11 @@ impl<O: Write> VM<O> {
                 true
             }
             // TODO: Check whether cloning the closure is fine.
-            Value::BoundMethod(bound) => self.call(bound.get_closure().clone(), arg_count),
+            Value::BoundMethod(bound) => {
+                let len = self.stack.len();
+                self.stack[len - 1 - arg_count as usize] = bound.get_receiver().clone();
+                self.call(bound.get_closure().clone(), arg_count)
+            }
             _ => {
                 self.runtime_error("Can only call functions and classes.");
                 false

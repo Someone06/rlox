@@ -210,7 +210,7 @@ impl DerefMut for FunctionBuilder {
 pub enum FunctionType {
     Function,
     Script,
-    Closure,
+    Method,
 }
 
 impl Display for FunctionType {

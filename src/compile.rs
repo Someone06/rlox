@@ -22,6 +22,7 @@ pub struct Parser<'a, I: Iterator<Item = Token<'a>>> {
     rules: ParseRules<'a, I>,
     symbol_table: SymbolTable,
     compilers: Vec<Compiler<'a>>,
+    class_compilers: Vec<ClassCompiler>,
 }
 
 impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
@@ -35,8 +36,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             rules: ParseRules::new(),
             symbol_table: SymbolTable::new(),
             compilers: Vec::new(),
+            class_compilers: Vec::new(),
         };
-        parser.compilers.push(Compiler::new());
+        parser.compilers.push(Compiler::new(FunctionType::Script));
         parser.advance();
         parser
     }
@@ -226,7 +228,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn function(&mut self, kind: FunctionType) {
-        self.compilers.push(Compiler::new());
+        self.compilers.push(Compiler::new(kind));
         self.current_compiler()
             .get_function_builder()
             .set_kind(kind);
@@ -288,6 +290,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         let name = self.identifier_constant(self.previous.get_lexme_string());
         self.declare_variable();
 
+        self.class_compilers.push(ClassCompiler::new());
+
         self.emit_opcode(OpCode::OpClass);
         self.emit_index(name);
         self.define_variable(name);
@@ -299,6 +303,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
         self.consume(TokenType::RightBrace, "Expected '}' after class body.");
         self.emit_opcode(OpCode::OpPop);
+        self.class_compilers.pop();
     }
 
     fn method(&mut self) {
@@ -509,6 +514,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn variable(&mut self, can_assign: bool) {
         self.named_variable(self.previous.clone(), can_assign);
+    }
+
+    fn this(&mut self) {
+        if self.class_compilers.is_empty() {
+            self.error("Cannot use 'this' outside of a class");
+        } else {
+            self.variable(false);
+        }
     }
 
     fn named_variable(&mut self, name: Token<'a>, can_assign: bool) {
@@ -914,7 +927,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
             TokenType::Print        => ParseRule::new(None, None, Precedence::None),
             TokenType::Return       => ParseRule::new(None, None, Precedence::None),
             TokenType::Super        => ParseRule::new(None, None, Precedence::None),
-            TokenType::This         => ParseRule::new(None, None, Precedence::None),
+            TokenType::This         => ParseRule::new(Some(|c, _| c.this()), None, Precedence::None),
             TokenType::True         => ParseRule::new(Some(|c, _| c.literal()), None, Precedence::None),
             TokenType::Var          => ParseRule::new(None, None, Precedence::None),
             TokenType::While        => ParseRule::new(None, None, Precedence::None),
@@ -938,11 +951,18 @@ struct Compiler<'a> {
 }
 
 impl<'a> Compiler<'a> {
-    fn new() -> Self {
+    fn new(kind: FunctionType) -> Self {
+        let token = if kind != FunctionType::Function {
+            Token::new(TokenType::EOF, &['t', 'h', 'i', 's'], 0)
+        } else {
+            Token::new(TokenType::EOF, &[], 0)
+        };
+
         // We reserve the fist locals entry for internal use.
-        let local = Local::new(Token::new(TokenType::EOF, &[], 0), 0);
+        let local = Local::new(token, 0);
+
         Compiler {
-            function_builder: FunctionBuilder::new(None, 0, FunctionType::Script),
+            function_builder: FunctionBuilder::new(None, 0, kind),
             locals: vec![local],
             upvalues: Vec::new(),
             scope_depth: 0,
@@ -1096,5 +1116,13 @@ impl Upvalue {
 
     pub fn is_local(&self) -> bool {
         self.is_local
+    }
+}
+
+struct ClassCompiler {}
+
+impl ClassCompiler {
+    fn new() -> Self {
+        ClassCompiler {}
     }
 }

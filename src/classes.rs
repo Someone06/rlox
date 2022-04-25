@@ -184,6 +184,10 @@ impl BoundMethod {
     pub fn get_closure(&self) -> &Closure {
         self.method.as_ref()
     }
+
+    pub fn get_receiver(&self) -> &Value {
+        self.receiver.as_ref()
+    }
 }
 
 impl Clone for BoundMethod {
