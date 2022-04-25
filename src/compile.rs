@@ -309,7 +309,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn method(&mut self) {
         self.consume(TokenType::Identifier, "Expected method name.");
         let constant = self.identifier_constant(self.previous.get_lexme_string());
-        self.function(FunctionType::Function);
+        self.function(FunctionType::Method);
         self.emit_opcode(OpCode::OpMethod);
         self.emit_index(constant);
     }
