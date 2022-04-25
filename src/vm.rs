@@ -20,17 +20,20 @@ pub struct VM<O: Write> {
     symbol_table: SymbolTable,
     globals: HashMap<Symbol, Value>,
     open_upvalues: Vec<ObjUpvalue>,
+    init_symbol: Symbol,
     print_output: O,
 }
 
 impl VM<std::io::Stdout> {
-    pub fn new(closure: Closure, symbol_table: SymbolTable) -> Self {
+    pub fn new(closure: Closure, mut symbol_table: SymbolTable) -> Self {
+        let init_symbol = symbol_table.intern(String::from("init"));
         let mut vm = VM {
             stack: Vec::new(),
             symbol_table,
             globals: HashMap::new(),
             frames: Vec::new(),
             open_upvalues: Vec::new(),
+            init_symbol,
             print_output: std::io::stdout(),
         };
 
@@ -42,13 +45,16 @@ impl VM<std::io::Stdout> {
 }
 
 impl<O: Write> VM<O> {
-    pub fn with_write(closure: Closure, symbol_table: SymbolTable, write: O) -> Self {
+    pub fn with_write(closure: Closure, mut symbol_table: SymbolTable, write: O) -> Self {
+        let init_symbol = symbol_table.intern(String::from("init"));
+
         let mut vm = VM {
             stack: Vec::new(),
             symbol_table,
             globals: HashMap::new(),
             frames: Vec::new(),
             open_upvalues: Vec::new(),
+            init_symbol,
             print_output: write,
         };
 
@@ -505,11 +511,25 @@ impl<O: Write> VM<O> {
                     false
                 }
             }
-            Value::Class(clazz) => {
-                let instance = InstanceRef::from(clazz);
+            Value::Class(clazz_ref) => {
+                let instance = InstanceRef::from(clazz_ref.clone());
                 let len = self.stack.len();
                 self.stack[len - 1 - arg_count as usize] = Value::Instance(instance);
-                true
+                // TODO: Check whether cloning the closure is fine.
+                clazz_ref
+                    .get_clazz()
+                    .get_method(&self.init_symbol)
+                    .map(|m| self.call(m.deref().clone(), arg_count))
+                    .unwrap_or_else(|| {
+                        if arg_count == 0 {
+                            true
+                        } else {
+                            self.runtime_error(
+                                format!("Expected 0 arguments, but got {}.", arg_count).as_str(),
+                            );
+                            false
+                        }
+                    })
             }
             // TODO: Check whether cloning the closure is fine.
             Value::BoundMethod(bound) => {

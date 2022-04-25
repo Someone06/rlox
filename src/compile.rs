@@ -309,7 +309,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn method(&mut self) {
         self.consume(TokenType::Identifier, "Expected method name.");
         let constant = self.identifier_constant(self.previous.get_lexme_string());
-        self.function(FunctionType::Method);
+        let kind = match self.previous.get_lexme_string() == "init" {
+            true => FunctionType::Initializer,
+            false => FunctionType::Method,
+        };
+        self.function(kind);
         self.emit_opcode(OpCode::OpMethod);
         self.emit_index(constant);
     }
@@ -364,6 +368,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         if self.matches(TokenType::Semicolon) {
             self.emit_return();
         } else {
+            if self.current_compiler().get_function_builder().get_kind()
+                == FunctionType::Initializer
+            {
+                self.error("Cannot return a value from an initializer.");
+            }
             self.expression();
             self.consume(TokenType::Semicolon, "Expected ';' after return value.");
             self.emit_opcode(OpCode::OpReturn);
@@ -674,7 +683,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn emit_return(&mut self) {
-        self.emit_opcode(OpCode::OpNil);
+        match self.current_compiler().get_function_builder().get_kind() {
+            FunctionType::Initializer => {
+                self.emit_opcode(OpCode::OpGetLocal);
+                self.emit_index(0)
+            }
+            _ => self.emit_opcode(OpCode::OpNil),
+        }
+
         self.emit_opcode(OpCode::OpReturn);
     }
 

@@ -211,6 +211,7 @@ pub enum FunctionType {
     Function,
     Script,
     Method,
+    Initializer,
 }
 
 impl Display for FunctionType {
