@@ -433,6 +433,17 @@ impl<O: Write> VM<O> {
                     let name = unsafe { self.read_string() }.clone();
                     self.define_method(name);
                 }
+
+                OpCode::OpInvoke => {
+                    let method = unsafe { self.read_string() }.clone();
+                    let arg_count = unsafe { self.read_index() };
+                    let success = self.invoke(&method, arg_count);
+                    if success {
+                        self.frames.pop();
+                    } else {
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
             }
         }
     }
@@ -542,6 +553,35 @@ impl<O: Write> VM<O> {
                 false
             }
         }
+    }
+
+    fn invoke(&mut self, name: &Symbol, arg_count: u8) -> bool {
+        let len = self.stack.len();
+        if let Value::Instance(instance_ref) = self.stack[len - 1 - arg_count as usize].clone() {
+            let instance = instance_ref.get_instance();
+
+            if let Some(value) = instance.get_value(name).cloned() {
+                let len = self.stack.len();
+                self.stack[len - 1 - arg_count as usize] = value.clone();
+                self.call_value(value, arg_count)
+            } else {
+                self.invoke_from_class(instance.get_clazz_ref(), name, arg_count)
+            }
+        } else {
+            self.runtime_error("Only instances have methods.");
+            false
+        }
+    }
+
+    fn invoke_from_class(&mut self, class_ref: &ClazzRef, name: &Symbol, arg_count: u8) -> bool {
+        class_ref
+            .get_clazz()
+            .get_method(name)
+            .map(|m| self.call(m.deref().clone(), arg_count))
+            .unwrap_or_else(|| {
+                self.runtime_error(format!("Undefined property '{}'.", name).as_str());
+                false
+            })
     }
 
     fn bind_method(&mut self, clazz_ref: ClazzRef, name: Symbol) -> bool {

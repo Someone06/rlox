@@ -328,15 +328,19 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.consume(TokenType::Identifier, "Expected property name after '.'.");
         let name = self.identifier_constant(self.previous.get_lexme_string());
 
-        let opcode = if can_assign && self.matches(TokenType::Equal) {
+        if can_assign && self.matches(TokenType::Equal) {
             self.expression();
-            OpCode::OpSetProperty
+            self.emit_opcode(OpCode::OpSetProperty);
+            self.emit_index(name);
+        } else if self.matches(TokenType::LeftParen) {
+            let arg_count = self.argument_list();
+            self.emit_opcode(OpCode::OpInvoke);
+            self.emit_index(name);
+            self.emit_index(arg_count);
         } else {
-            OpCode::OpGetProperty
-        };
-
-        self.emit_opcode(opcode);
-        self.emit_index(name);
+            self.emit_opcode(OpCode::OpGetProperty);
+            self.emit_index(name);
+        }
     }
 
     fn argument_list(&mut self) -> u8 {

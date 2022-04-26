@@ -222,6 +222,7 @@ impl Chunk {
             }
             OpCode::OpLoop => self.jump_instruction(opcode, offset, -1, writer),
             OpCode::OpClosure => self.closure(opcode, offset, writer),
+            OpCode::OpInvoke => self.invoke_instruction(opcode, offset, writer),
         }
     }
 
@@ -254,6 +255,28 @@ impl Chunk {
         let index = unsafe { code_unit.get_index() };
         let value = &self.constants[index as usize];
         writeln!(writer, "{:-16} {:4} '{}'", opcode, index, value).map(|_| offset + 2)
+    }
+
+    fn invoke_instruction(
+        &self,
+        opcode: OpCode,
+        offset: usize,
+        writer: &mut impl Write,
+    ) -> Result<usize, std::io::Error> {
+        let constant = self.code[offset + 1];
+        let arg_count = self.code[offset + 2];
+
+        // Safety: We know that the instruction at offset is the invoke instruction.
+        // That instruction requires exactly two indexes
+        let constant = unsafe { constant.get_index() };
+        let arg_count = unsafe { arg_count.get_index() };
+        let value = &self.constants[constant as usize];
+        writeln!(
+            writer,
+            "{:-16} ({} args) {:4} '{}'",
+            opcode, arg_count, constant, value
+        )
+        .map(|_| offset + 3)
     }
 
     fn jump_instruction(
