@@ -438,9 +438,7 @@ impl<O: Write> VM<O> {
                     let method = unsafe { self.read_string() }.clone();
                     let arg_count = unsafe { self.read_index() };
                     let success = self.invoke(&method, arg_count);
-                    if success {
-                        self.frames.pop();
-                    } else {
+                    if !success {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
