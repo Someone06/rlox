@@ -215,7 +215,8 @@ impl Chunk {
             | OpCode::OpTrue
             | OpCode::OpFalse
             | OpCode::OpNil
-            | OpCode::OpCloseUpvalue => self.simple_instruction(opcode, offset, writer),
+            | OpCode::OpCloseUpvalue
+            | OpCode::OpInherit => self.simple_instruction(opcode, offset, writer),
 
             OpCode::OpJump | OpCode::OpJumpIfFalse => {
                 self.jump_instruction(opcode, offset, 1, writer)

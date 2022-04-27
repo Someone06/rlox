@@ -37,6 +37,7 @@ pub enum OpCode {
     OpSetProperty,
     OpMethod,
     OpInvoke,
+    OpInherit,
 }
 
 pub struct IndexesPerOpCode {
@@ -84,6 +85,7 @@ impl IndexesPerOpCode {
             OpCode::OpSetProperty => 1,
             OpCode::OpMethod => 1,
             OpCode::OpInvoke => 2,
+            OpCode::OpInherit => 1,
         };
 
         IndexesPerOpCode { map }

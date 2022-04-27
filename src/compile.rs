@@ -296,6 +296,18 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.emit_index(name);
         self.define_variable(name);
 
+        if self.matchs(TokenType::Less) {
+            self.consume(TokenType::Identifier, "Expect superclass name.");
+            self.variable(false);
+
+            if class_name.get_lexme() == self.previous.get_lexme() {
+                self.error("A class cannot inherit from itself.");
+            }
+
+            self.named_variable(class_name.clone(), false);
+            self.emit_opcode(OpCode::OpInherit);
+        }
+
         self.named_variable(class_name, false);
         self.consume(TokenType::LeftBrace, "Expected '{' before class body.");
         while !self.check(TokenType::RightBrace) && !self.check(TokenType::EOF) {

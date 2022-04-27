@@ -29,8 +29,16 @@ impl Clazz {
         self.methods.insert(name, Rc::new(value));
     }
 
+    pub fn set_method_ref(&mut self, name: Symbol, value: Rc<Closure>) {
+        self.methods.insert(name, value);
+    }
+
     pub fn get_method(&self, name: &Symbol) -> Option<Rc<Closure>> {
         self.methods.get(name).map(|rc| Rc::clone(rc))
+    }
+
+    pub fn get_methods(&self) -> impl ExactSizeIterator<Item = (&Symbol, &Rc<Closure>)> {
+        self.methods.iter()
     }
 }
 

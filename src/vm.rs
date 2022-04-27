@@ -442,6 +442,26 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
+                OpCode::OpInherit => {
+                    let len = self.stack.len();
+                    if let Value::Class(superclass) = &self.stack[len - 2] {
+                        if let Value::Class(mut subclass_ref) = self.stack.last().unwrap().clone() {
+                            subclass_ref
+                                .get_clazz()
+                                .get_methods()
+                                .map(|(s, m)| (s.clone(), std::rc::Rc::clone(m)))
+                                .for_each(|(s, m)| {
+                                    subclass_ref.get_clazz_mut().set_method_ref(s, m)
+                                });
+                            self.stack.pop();
+                        } else {
+                            panic!("Expected class");
+                        }
+                    } else {
+                        self.runtime_error("Superclass must be a class.");
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
             }
         }
     }
