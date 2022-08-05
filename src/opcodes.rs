@@ -38,6 +38,7 @@ pub enum OpCode {
     OpMethod,
     OpInvoke,
     OpInherit,
+    OpGetSuper,
 }
 
 pub struct IndexesPerOpCode {
@@ -50,7 +51,7 @@ pub struct IndexesPerOpCode {
 /// arguments.
 impl IndexesPerOpCode {
     pub fn new() -> Self {
-        let map = ::enum_map::enum_map! {
+        let map = enum_map::enum_map! {
             OpCode::OpConstant => 1,
             OpCode::OpNil => 0,
             OpCode::OpTrue => 0,
@@ -86,6 +87,7 @@ impl IndexesPerOpCode {
             OpCode::OpMethod => 1,
             OpCode::OpInvoke => 2,
             OpCode::OpInherit => 1,
+            OpCode::OpGetSuper => 1,
         };
 
         IndexesPerOpCode { map }
@@ -97,7 +99,7 @@ impl IndexesPerOpCode {
 }
 
 impl std::fmt::Display for OpCode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}", self)
     }
 }

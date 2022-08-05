@@ -8,6 +8,7 @@ use crate::tokens::{Token, TokenType};
 use crate::value::Value;
 
 const SUPER: [char; 5] = ['s', 'u', 'p', 'e', 'r'];
+const THIS: [char; 4] = ['t', 'h', 'i', 's'];
 
 macro_rules! emit_opcodes {
         ($instance:ident, $($opcode:expr $(,)?),+ $(,)?) => {{
@@ -558,6 +559,24 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         Token::new(token_type, text, u32::MAX)
     }
 
+    fn super_(&mut self) {
+        if self.class_compilers.is_empty() {
+            self.error("Can't use 'super' outside of a class.");
+        } else if !self.current_class_compiler().get_has_superclass() {
+            self.error("Can't use 'super' in a class with no superclass.");
+        }
+
+        self.consume(TokenType::Dot, "Expected '.' after 'super'.");
+        self.consume(TokenType::Identifier, "Expected superclass method name.");
+        let name = self.identifier_constant(self.previous.get_lexme_string());
+        let this_dummy_token = self.synthetic_token(TokenType::Identifier, &THIS);
+        self.named_variable(this_dummy_token, false);
+        let super_dummy_token = self.synthetic_token(TokenType::Identifier, &SUPER);
+        self.named_variable(super_dummy_token, false);
+        self.emit_opcode(OpCode::OpGetSuper);
+        self.emit_index(name);
+    }
+
     fn this(&mut self) {
         if self.class_compilers.is_empty() {
             self.error("Cannot use 'this' outside of a class");
@@ -983,7 +1002,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
             TokenType::Or           => ParseRule::new(None, Some(|c, _| c.or()), Precedence::Or),
             TokenType::Print        => ParseRule::new(None, None, Precedence::None),
             TokenType::Return       => ParseRule::new(None, None, Precedence::None),
-            TokenType::Super        => ParseRule::new(None, None, Precedence::None),
+            TokenType::Super        => ParseRule::new(Some(|c, _| c.super_()), None, Precedence::None),
             TokenType::This         => ParseRule::new(Some(|c, _| c.this()), None, Precedence::None),
             TokenType::True         => ParseRule::new(Some(|c, _| c.literal()), None, Precedence::None),
             TokenType::Var          => ParseRule::new(None, None, Precedence::None),

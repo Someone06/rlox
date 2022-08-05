@@ -194,7 +194,8 @@ impl Chunk {
             | OpCode::OpClass
             | OpCode::OpGetProperty
             | OpCode::OpSetProperty
-            | OpCode::OpMethod => self.constant_instruction(opcode, offset, writer),
+            | OpCode::OpMethod
+            | OpCode::OpGetSuper => self.constant_instruction(opcode, offset, writer),
             OpCode::OpGetLocal
             | OpCode::OpSetLocal
             | OpCode::OpGetUpvalue
