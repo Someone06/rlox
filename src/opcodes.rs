@@ -86,7 +86,7 @@ impl IndexesPerOpCode {
             OpCode::OpSetProperty => 1,
             OpCode::OpMethod => 1,
             OpCode::OpInvoke => 2,
-            OpCode::OpInherit => 1,
+            OpCode::OpInherit => 0,
             OpCode::OpGetSuper => 1,
         };
 
