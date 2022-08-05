@@ -475,6 +475,22 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
+                OpCode::OpSuperInvoke => {
+                    // Safety: We know that OpSuperInvoke takes two arguments to which self.ip
+                    //         points, because it is incremented after reading this opcode.
+                    //         Also self.ip gets incremented after reading the constant so it will
+                    //         point to the next opcode after this.
+                    let method = unsafe { self.read_string() }.clone();
+                    let arg_count = unsafe { self.read_index() }.clone();
+                    if let Value::Class(superclass) = self.stack.pop().unwrap().clone() {
+                        if !self.invoke_from_class(&superclass, &method, arg_count) {
+                            return Err(InterpretResult::RuntimeError);
+                        }
+                    } else {
+                        self.runtime_error("Superclass must be a class.");
+                        return Err(InterpretResult::RuntimeError);
+                    }
+                }
             }
         }
     }

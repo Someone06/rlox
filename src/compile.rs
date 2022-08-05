@@ -571,10 +571,20 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         let name = self.identifier_constant(self.previous.get_lexme_string());
         let this_dummy_token = self.synthetic_token(TokenType::Identifier, &THIS);
         self.named_variable(this_dummy_token, false);
-        let super_dummy_token = self.synthetic_token(TokenType::Identifier, &SUPER);
-        self.named_variable(super_dummy_token, false);
-        self.emit_opcode(OpCode::OpGetSuper);
-        self.emit_index(name);
+
+        if self.matches(TokenType::LeftParen) {
+            let arg_count = self.argument_list();
+            let super_dummy_token = self.synthetic_token(TokenType::Identifier, &SUPER);
+            self.named_variable(super_dummy_token, false);
+            self.emit_opcode(OpCode::OpSuperInvoke);
+            self.emit_index(name);
+            self.emit_index(arg_count);
+        } else {
+            let super_dummy_token = self.synthetic_token(TokenType::Identifier, &SUPER);
+            self.named_variable(super_dummy_token, false);
+            self.emit_opcode(OpCode::OpGetSuper);
+            self.emit_index(name);
+        }
     }
 
     fn this(&mut self) {

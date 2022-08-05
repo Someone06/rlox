@@ -224,7 +224,7 @@ impl Chunk {
             }
             OpCode::OpLoop => self.jump_instruction(opcode, offset, -1, writer),
             OpCode::OpClosure => self.closure(opcode, offset, writer),
-            OpCode::OpInvoke => self.invoke_instruction(opcode, offset, writer),
+            OpCode::OpInvoke | OpCode::OpSuperInvoke => self.invoke_instruction(opcode, offset, writer),
         }
     }
 

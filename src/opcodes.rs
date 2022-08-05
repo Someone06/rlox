@@ -39,6 +39,7 @@ pub enum OpCode {
     OpInvoke,
     OpInherit,
     OpGetSuper,
+    OpSuperInvoke,
 }
 
 pub struct IndexesPerOpCode {
@@ -88,6 +89,7 @@ impl IndexesPerOpCode {
             OpCode::OpInvoke => 2,
             OpCode::OpInherit => 0,
             OpCode::OpGetSuper => 1,
+            OpCode::OpSuperInvoke => 2,
         };
 
         IndexesPerOpCode { map }
