@@ -1,0 +1,16 @@
+//A method
+
+class A {
+    method() {
+        print "A method";
+    }
+}
+
+ class B < A {
+     method() {
+         return super.method;
+     }
+ }
+ 
+ B().method()();
+ 
