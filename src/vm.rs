@@ -445,15 +445,12 @@ impl<O: Write> VM<O> {
                 OpCode::OpInherit => {
                     let len = self.stack.len();
                     if let Value::Class(superclass) = &self.stack[len - 2] {
-                        if let Value::Class(mut subclass_ref) = self.stack.last().unwrap().clone() {
-                            subclass_ref
-                                .clone()
+                        if let Value::Class(mut subclass) = self.stack.last().unwrap().clone() {
+                            superclass
                                 .get_clazz()
                                 .get_methods()
                                 .map(|(s, m)| (s.clone(), std::rc::Rc::clone(m)))
-                                .for_each(|(s, m)| {
-                                    subclass_ref.get_clazz_mut().set_method_ref(s, m)
-                                });
+                                .for_each(|(s, m)| subclass.get_clazz_mut().set_method_ref(s, m));
                             self.stack.pop();
                         } else {
                             panic!("Expected class");
