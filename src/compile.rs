@@ -296,7 +296,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.emit_index(name);
         self.define_variable(name);
 
-        if self.matchs(TokenType::Less) {
+        if self.matches(TokenType::Less) {
             self.consume(TokenType::Identifier, "Expect superclass name.");
             self.variable(false);
 

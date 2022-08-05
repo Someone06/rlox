@@ -447,6 +447,7 @@ impl<O: Write> VM<O> {
                     if let Value::Class(superclass) = &self.stack[len - 2] {
                         if let Value::Class(mut subclass_ref) = self.stack.last().unwrap().clone() {
                             subclass_ref
+                                .clone()
                                 .get_clazz()
                                 .get_methods()
                                 .map(|(s, m)| (s.clone(), std::rc::Rc::clone(m)))
