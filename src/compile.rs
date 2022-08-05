@@ -7,6 +7,8 @@ use crate::opcodes::OpCode;
 use crate::tokens::{Token, TokenType};
 use crate::value::Value;
 
+const SUPER: [char; 5] = ['s', 'u', 'p', 'e', 'r'];
+
 macro_rules! emit_opcodes {
         ($instance:ident, $($opcode:expr $(,)?),+ $(,)?) => {{
               $($instance.emit_opcode($opcode);)+
@@ -304,8 +306,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
                 self.error("A class cannot inherit from itself.");
             }
 
+            self.begin_scope();
+            let dummy_token = self.synthetic_token(TokenType::Identifier, &SUPER);
+            self.add_local(dummy_token);
+            self.define_variable(0);
+
             self.named_variable(class_name.clone(), false);
             self.emit_opcode(OpCode::OpInherit);
+            self.current_class_compiler_mut().set_has_superclass(true);
         }
 
         self.named_variable(class_name, false);
@@ -315,6 +323,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
         self.consume(TokenType::RightBrace, "Expected '}' after class body.");
         self.emit_opcode(OpCode::OpPop);
+
+        if self.current_class_compiler().get_has_superclass() {
+            self.end_scope();
+        }
+
         self.class_compilers.pop();
     }
 
@@ -541,6 +554,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.named_variable(self.previous.clone(), can_assign);
     }
 
+    fn synthetic_token(&mut self, token_type: TokenType, text: &'static [char]) -> Token<'static> {
+        Token::new(token_type, text, u32::MAX)
+    }
+
     fn this(&mut self) {
         if self.class_compilers.is_empty() {
             self.error("Cannot use 'this' outside of a class");
@@ -750,6 +767,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.compilers.last_mut().unwrap()
     }
 
+    fn current_class_compiler(&self) -> &ClassCompiler {
+        self.class_compilers.last().unwrap()
+    }
+
+    fn current_class_compiler_mut(&mut self) -> &mut ClassCompiler {
+        self.class_compilers.last_mut().unwrap()
+    }
+
     fn end_compile(&mut self) -> Function {
         self.emit_return();
 
@@ -919,12 +944,12 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRule<'a, I> {
 }
 
 struct ParseRules<'a, I: Iterator<Item = Token<'a>>> {
-    rules: ::enum_map::EnumMap<TokenType, ParseRule<'a, I>>,
+    rules: enum_map::EnumMap<TokenType, ParseRule<'a, I>>,
 }
 
 impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
     fn new() -> Self {
-        let rules = ::enum_map::enum_map! {
+        let rules = enum_map::enum_map! {
         TokenType::LeftParen    => ParseRule::new(Some(|c, _| c.grouping()), Some(|c, _| c.call()), Precedence::Call),
             TokenType::RightParen   => ParseRule::new(None, None, Precedence::None),
             TokenType::LeftBrace    => ParseRule::new(None, None, Precedence::None),
@@ -1151,10 +1176,22 @@ impl Upvalue {
     }
 }
 
-struct ClassCompiler {}
+struct ClassCompiler {
+    has_superclass: bool,
+}
 
 impl ClassCompiler {
     fn new() -> Self {
-        ClassCompiler {}
+        ClassCompiler {
+            has_superclass: false,
+        }
+    }
+
+    fn get_has_superclass(&self) -> bool {
+        self.has_superclass
+    }
+
+    fn set_has_superclass(&mut self, has_superclass: bool) {
+        self.has_superclass = has_superclass;
     }
 }
