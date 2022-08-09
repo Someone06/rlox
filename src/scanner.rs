@@ -321,7 +321,7 @@ impl<'a> ScannerImpl<'a> {
 
 impl<'a> Iterator for ScannerImpl<'a> {
     type Item = Token<'a>;
-    fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> {
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
         self.scan_token()
     }
 }
@@ -356,11 +356,11 @@ mod tests {
         };
     }
 
-    macro_rules! lexmes {
+    macro_rules! lexemes {
         ($v:ident) => {
             $v.iter()
                 .filter(|t| t.get_token_type() != TokenType::EOF)
-                .map(|t| t.get_lexme())
+                .map(|t| t.get_lexeme())
                 .map(|l| l.iter().collect::<String>())
                 .collect::<Vec<String>>()
         };
@@ -406,7 +406,7 @@ mod tests {
             .iter()
             .filter(|tt| *tt != &TokenType::EOF)
             .all(|t| t.eq(&TokenType::Number)));
-        assert_eq!(lexmes!(result), expected);
+        assert_eq!(lexemes!(result), expected);
     }
 
     #[test]
@@ -454,7 +454,7 @@ mod tests {
             .filter(|tt| *tt != &TokenType::EOF)
             .all(|t| t.eq(&TokenType::Identifier)));
 
-        assert_eq!(lexmes!(result), expected);
+        assert_eq!(lexemes!(result), expected);
     }
 
     #[test]
@@ -469,7 +469,7 @@ mod tests {
             .filter(|tt| *tt != &TokenType::EOF)
             .all(|t| t.eq(&TokenType::String)));
 
-        assert_eq!(lexmes!(result), expected);
+        assert_eq!(lexemes!(result), expected);
     }
 
     #[test]
