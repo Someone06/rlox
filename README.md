@@ -6,9 +6,9 @@ Robert Nystrom for his book
 
 ## Implementation Status
 
-The implementation currently supports expression, printing, global and local
-variables, control flow, functions and closures. Yet to implement are classes
-and inheritance.
+The implementation currently supports all feature of Lox that are implemented in
+the book. None of the optional features posed as challenges in the book (such as
+`break` and `continue`) have been implemented.
 
 ## Usage
     rlox <path-to-code-file>
