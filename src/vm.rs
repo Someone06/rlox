@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Deref;
 
-use crate::classes::{BoundMethod, Clazz, ClazzRef, Instance, InstanceRef};
+use crate::classes::{BoundMethod, Clazz, ClazzRef, InstanceRef};
 use crate::function::{clock, Closure, NativeFunction, ObjUpvalue, UpvalueLocation};
 use crate::intern_string::{Symbol, SymbolTable};
 use crate::opcodes::OpCode;
@@ -758,9 +758,10 @@ impl<O: Write> VM<O> {
                 None => "script",
             };
             eprint!(
-                "[line {}] in {}()",
+                "[line {}] in {}(): {}",
                 function.get_chunk().get_source_code_line(ip),
-                name
+                name,
+                message
             );
         }
 
