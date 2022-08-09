@@ -47,8 +47,8 @@ pub struct IndexesPerOpCode {
 }
 
 /// This struct is used to get how many arguments each Opcode required.
-/// Each Opcode requires a fix ammount of arguments.
-/// The only exeption is OpCode::OpClosure, which requires a variable number of
+/// Each Opcode requires a fix amount of arguments.
+/// The only exception is OpCode::OpClosure, which requires a variable number of
 /// arguments.
 impl IndexesPerOpCode {
     pub fn new() -> Self {

@@ -18,13 +18,13 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn is_falsey(&self) -> bool {
+    pub fn is_falsy(&self) -> bool {
         matches!(self, Value::Nil | Value::Bool(false))
     }
 }
 
 impl std::fmt::Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let s = match &self {
             Value::Bool(b) => b.to_string(),
             Value::Double(f) => f.to_string(),

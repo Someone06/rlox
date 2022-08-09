@@ -62,7 +62,7 @@ impl std::fmt::Display for TokenType {
 #[derive(Clone)]
 pub struct Token<'a> {
     token_type: TokenType,
-    lexme: &'a [char],
+    lexeme: &'a [char],
     line: u32,
 }
 
@@ -70,7 +70,7 @@ impl<'a> Token<'a> {
     pub fn new(token_type: TokenType, lexme: &'a [char], line: u32) -> Self {
         Token {
             token_type,
-            lexme,
+            lexeme: lexme,
             line,
         }
     }
@@ -79,23 +79,23 @@ impl<'a> Token<'a> {
         self.token_type
     }
 
-    pub fn get_lexme(&self) -> &'a [char] {
-        self.lexme
+    pub fn get_lexeme(&self) -> &'a [char] {
+        self.lexeme
     }
 
     pub fn get_line(&self) -> u32 {
         self.line
     }
 
-    pub fn get_lexme_string(&self) -> String {
-        self.lexme.iter().collect::<String>()
+    pub fn get_lexeme_string(&self) -> String {
+        self.lexeme.iter().collect::<String>()
     }
 }
 
 impl<'a> std::fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:12} '", self.token_type)?;
-        for c in self.lexme.iter() {
+        for c in self.lexeme.iter() {
             f.write_char(*c)?;
         }
         f.write_char('\'')

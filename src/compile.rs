@@ -236,7 +236,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             .get_function_builder()
             .set_kind(kind);
         if kind != FunctionType::Script {
-            let name = self.previous.get_lexme_string();
+            let name = self.previous.get_lexeme_string();
             let intern = self.symbol_table.intern(name);
             self.current_compiler()
                 .get_function_builder()
@@ -290,7 +290,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn class_declaration(&mut self) {
         self.consume(TokenType::Identifier, "Expected class name.");
         let class_name = self.previous.clone();
-        let name = self.identifier_constant(self.previous.get_lexme_string());
+        let name = self.identifier_constant(self.previous.get_lexeme_string());
         self.declare_variable();
 
         self.class_compilers.push(ClassCompiler::new());
@@ -303,7 +303,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             self.consume(TokenType::Identifier, "Expect superclass name.");
             self.variable(false);
 
-            if class_name.get_lexme() == self.previous.get_lexme() {
+            if class_name.get_lexeme() == self.previous.get_lexeme() {
                 self.error("A class cannot inherit from itself.");
             }
 
@@ -334,8 +334,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn method(&mut self) {
         self.consume(TokenType::Identifier, "Expected method name.");
-        let constant = self.identifier_constant(self.previous.get_lexme_string());
-        let kind = match self.previous.get_lexme_string() == "init" {
+        let constant = self.identifier_constant(self.previous.get_lexeme_string());
+        let kind = match self.previous.get_lexeme_string() == "init" {
             true => FunctionType::Initializer,
             false => FunctionType::Method,
         };
@@ -352,7 +352,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn dot(&mut self, can_assign: bool) {
         self.consume(TokenType::Identifier, "Expected property name after '.'.");
-        let name = self.identifier_constant(self.previous.get_lexme_string());
+        let name = self.identifier_constant(self.previous.get_lexeme_string());
 
         if can_assign && self.matches(TokenType::Equal) {
             self.expression();
@@ -431,7 +431,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         if self.current_compiler().get_scope_depth() > 0 {
             0
         } else {
-            self.identifier_constant(self.previous.get_lexme_string())
+            self.identifier_constant(self.previous.get_lexeme_string())
         }
     }
 
@@ -568,7 +568,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         self.consume(TokenType::Dot, "Expected '.' after 'super'.");
         self.consume(TokenType::Identifier, "Expected superclass method name.");
-        let name = self.identifier_constant(self.previous.get_lexme_string());
+        let name = self.identifier_constant(self.previous.get_lexeme_string());
         let this_dummy_token = self.synthetic_token(TokenType::Identifier, &THIS);
         self.named_variable(this_dummy_token, false);
 
@@ -608,7 +608,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             if arg != -1 {
                 (OpCode::OpGetUpvalue, OpCode::OpSetUpvalue)
             } else {
-                arg = self.identifier_constant(name.get_lexme_string()) as isize;
+                arg = self.identifier_constant(name.get_lexeme_string()) as isize;
                 (OpCode::OpGetGlobal, OpCode::OpSetGlobal)
             }
         };
@@ -658,7 +658,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn number(&mut self) {
         let value = self
             .previous
-            .get_lexme_string()
+            .get_lexeme_string()
             .parse::<f64>()
             .expect("Expected the lexme to be a number.");
         self.emit_constant(Value::Double(value));
@@ -674,7 +674,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn string(&mut self) {
-        let lexme = self.previous.get_lexme();
+        let lexme = self.previous.get_lexeme();
         let string = lexme[1..lexme.len() - 1].iter().collect::<String>();
         let intern = self.symbol_table.intern(string);
         self.emit_constant(Value::String(intern));
@@ -849,7 +849,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             if let Some(token) = current {
                 match &token.get_token_type() {
                     TokenType::Error => {
-                        self.error_at(&token, &token.get_lexme_string());
+                        self.error_at(&token, &token.get_lexeme_string());
                     }
                     _ => {
                         self.previous = std::mem::replace(&mut self.current, token);
@@ -893,7 +893,7 @@ fn error_at<'a>(token: &Token<'a>, message: &str) {
     if token.get_token_type() == TokenType::EOF {
         eprint!(" at end");
     } else if token.get_token_type() != TokenType::Error {
-        eprint!(" at '{}'", token.get_lexme_string())
+        eprint!(" at '{}'", token.get_lexeme_string())
     }
 
     eprintln!(": {}", message);
@@ -1093,7 +1093,7 @@ impl<'a> Compiler<'a> {
             .iter()
             .rev()
             .take_while(|l| l.get_depth() == -1 || l.get_depth() >= self.scope_depth as isize)
-            .any(|l| name.get_lexme() == l.get_name().get_lexme())
+            .any(|l| name.get_lexeme() == l.get_name().get_lexeme())
     }
 
     fn remove_out_of_scope_locals(&mut self) -> Vec<bool> {
@@ -1117,7 +1117,7 @@ impl<'a> Compiler<'a> {
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, l)| l.get_name().get_lexme() == name.get_lexme())
+            .find(|(_, l)| l.get_name().get_lexeme() == name.get_lexeme())
             .map_or((-1, false), |(i, l)| (i as isize, l.get_depth() == -1))
     }
 

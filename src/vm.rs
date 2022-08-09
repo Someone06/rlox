@@ -10,7 +10,6 @@ use crate::value::Value;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum InterpretResult {
-    CompileError,
     RuntimeError,
 }
 
@@ -105,7 +104,7 @@ impl<O: Write> VM<O> {
                     }
                 }
                 OpCode::OpPrint => {
-                    let _ = write!(self.print_output, "{}\n", self.stack.pop().unwrap());
+                    let _ = writeln!(self.print_output, "{}", self.stack.pop().unwrap());
                 }
                 OpCode::OpPop => {
                     self.stack.pop();
@@ -265,7 +264,7 @@ impl<O: Write> VM<O> {
                     self.binary_double_op(function)?;
                 }
                 OpCode::OpNot => {
-                    let value = Value::Bool(self.stack.pop().unwrap().is_falsey());
+                    let value = Value::Bool(self.stack.pop().unwrap().is_falsy());
                     self.stack.push(value);
                 }
                 OpCode::OpEqual => {
@@ -322,7 +321,7 @@ impl<O: Write> VM<O> {
                     //         Else the offset has been calculated in the compiler s.t. self.ip
                     //         points to an opcode after increasing it by offset.
                     let offset = unsafe { self.read_short() };
-                    if self.stack.last().unwrap().is_falsey() {
+                    if self.stack.last().unwrap().is_falsy() {
                         self.frames.last_mut().unwrap().inc_ip(offset as usize);
                     }
                 }
@@ -481,7 +480,7 @@ impl<O: Write> VM<O> {
                     //         Also self.ip gets incremented after reading the constant so it will
                     //         point to the next opcode after this.
                     let method = unsafe { self.read_string() }.clone();
-                    let arg_count = unsafe { self.read_index() }.clone();
+                    let arg_count = unsafe { self.read_index() };
                     if let Value::Class(superclass) = self.stack.pop().unwrap().clone() {
                         if !self.invoke_from_class(&superclass, &method, arg_count) {
                             return Err(InterpretResult::RuntimeError);
