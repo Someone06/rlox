@@ -1,10 +1,16 @@
-use ::weak_table::WeakHashSet;
-
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
+use ::weak_table::WeakHashSet;
+
+/// A simple string interning facility.
+///
+/// Interned strings are turned into symbols which are immutable, but can be compared for equality
+/// in constant time, regardless of the length of a string.
+/// Strings are only stored as long are there any Symbols associated with the string.
+/// Strings to which no Symbol refers to any more are lazily dropped.
 #[derive(Clone, Debug)]
 pub struct Symbol {
     intern: Rc<String>,
