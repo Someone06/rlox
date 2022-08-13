@@ -129,12 +129,12 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.expression();
         self.consume(TokenType::RightParen, "Expected ')' after condition.");
 
-        let then_branch = self.emit_jump(OpCode::OpJumpIfFalse);
-        self.emit_opcode(OpCode::OpPop);
+        let then_branch = self.emit_jump(OpCode::JumpIfFalse);
+        self.emit_opcode(OpCode::Pop);
         self.statement();
-        let else_branch = self.emit_jump(OpCode::OpJump);
+        let else_branch = self.emit_jump(OpCode::Jump);
         self.patch_jump(then_branch);
-        self.emit_opcode(OpCode::OpPop);
+        self.emit_opcode(OpCode::Pop);
 
         if self.matches(TokenType::Else) {
             self.statement();
@@ -163,8 +163,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         let exit_jump = if !self.matches(TokenType::Semicolon) {
             self.expression();
             self.consume(TokenType::Semicolon, "Expected ';' after loop condition.");
-            let jmp = self.emit_jump(OpCode::OpJumpIfFalse);
-            self.emit_opcode(OpCode::OpPop);
+            let jmp = self.emit_jump(OpCode::JumpIfFalse);
+            self.emit_opcode(OpCode::Pop);
             Some(jmp)
         } else {
             None
@@ -172,10 +172,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         // The increment clause is optional.
         if !self.matches(TokenType::RightParen) {
-            let body_jump = self.emit_jump(OpCode::OpJump);
+            let body_jump = self.emit_jump(OpCode::Jump);
             let inc_start = self.current_chunk().len();
             self.expression();
-            self.emit_opcode(OpCode::OpPop);
+            self.emit_opcode(OpCode::Pop);
             self.consume(TokenType::RightParen, "Expected ')' after for clause.");
 
             self.emit_loop(loop_start);
@@ -188,7 +188,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         if let Some(jump) = exit_jump {
             self.patch_jump(jump);
-            self.emit_opcode(OpCode::OpPop);
+            self.emit_opcode(OpCode::Pop);
         }
 
         self.end_scope();
@@ -200,12 +200,12 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.expression();
         self.consume(TokenType::RightParen, "Expected ')' after condition.");
 
-        let exit_jump = self.emit_jump(OpCode::OpJumpIfFalse);
-        self.emit_opcode(OpCode::OpPop);
+        let exit_jump = self.emit_jump(OpCode::JumpIfFalse);
+        self.emit_opcode(OpCode::Pop);
         self.statement();
         self.emit_loop(loop_start);
         self.patch_jump(exit_jump);
-        self.emit_opcode(OpCode::OpPop);
+        self.emit_opcode(OpCode::Pop);
     }
 
     fn patch_jump(&mut self, patch: Patch) {
@@ -277,7 +277,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             .collect::<Vec<(u8, u8)>>();
 
         let function = self.end_compile();
-        self.emit_opcode(OpCode::OpClosure);
+        self.emit_opcode(OpCode::Closure);
         let index = self.make_constant(Value::Function(function));
         self.emit_index(index);
 
@@ -295,7 +295,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         self.class_compilers.push(ClassCompiler::new());
 
-        self.emit_opcode(OpCode::OpClass);
+        self.emit_opcode(OpCode::Class);
         self.emit_index(name);
         self.define_variable(name);
 
@@ -313,7 +313,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             self.define_variable(0);
 
             self.named_variable(class_name.clone(), false);
-            self.emit_opcode(OpCode::OpInherit);
+            self.emit_opcode(OpCode::Inherit);
             self.current_class_compiler_mut().set_has_superclass(true);
         }
 
@@ -323,7 +323,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             self.method();
         }
         self.consume(TokenType::RightBrace, "Expected '}' after class body.");
-        self.emit_opcode(OpCode::OpPop);
+        self.emit_opcode(OpCode::Pop);
 
         if self.current_class_compiler().get_has_superclass() {
             self.end_scope();
@@ -340,13 +340,13 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             false => FunctionType::Method,
         };
         self.function(kind);
-        self.emit_opcode(OpCode::OpMethod);
+        self.emit_opcode(OpCode::Method);
         self.emit_index(constant);
     }
 
     fn call(&mut self) {
         let arg_count = self.argument_list();
-        self.emit_opcode(OpCode::OpCall);
+        self.emit_opcode(OpCode::Call);
         self.emit_index(arg_count);
     }
 
@@ -356,15 +356,15 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
         if can_assign && self.matches(TokenType::Equal) {
             self.expression();
-            self.emit_opcode(OpCode::OpSetProperty);
+            self.emit_opcode(OpCode::SetProperty);
             self.emit_index(name);
         } else if self.matches(TokenType::LeftParen) {
             let arg_count = self.argument_list();
-            self.emit_opcode(OpCode::OpInvoke);
+            self.emit_opcode(OpCode::Invoke);
             self.emit_index(name);
             self.emit_index(arg_count);
         } else {
-            self.emit_opcode(OpCode::OpGetProperty);
+            self.emit_opcode(OpCode::GetProperty);
             self.emit_index(name);
         }
     }
@@ -405,7 +405,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             }
             self.expression();
             self.consume(TokenType::Semicolon, "Expected ';' after return value.");
-            self.emit_opcode(OpCode::OpReturn);
+            self.emit_opcode(OpCode::Return);
         }
     }
 
@@ -414,7 +414,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         if self.matches(TokenType::Equal) {
             self.expression();
         } else {
-            self.emit_opcode(OpCode::OpNil);
+            self.emit_opcode(OpCode::Nil);
         }
 
         self.consume(
@@ -456,7 +456,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn define_variable(&mut self, global: u8) {
         if self.current_compiler().get_scope_depth() == 0 {
-            self.emit_opcode(OpCode::OpDefineGlobal);
+            self.emit_opcode(OpCode::DefineGlobal);
             self.emit_index(global);
         } else {
             self.current_compiler().mark_local_initialized();
@@ -475,7 +475,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn print_statement(&mut self) {
         self.expression();
         self.consume(TokenType::Semicolon, "Expected ';' after value.");
-        self.emit_opcode(OpCode::OpPrint);
+        self.emit_opcode(OpCode::Print);
     }
 
     fn block(&mut self) {
@@ -497,9 +497,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             .iter()
             .map(|c| {
                 if *c {
-                    OpCode::OpCloseUpvalue
+                    OpCode::CloseUpvalue
                 } else {
-                    OpCode::OpPop
+                    OpCode::Pop
                 }
             })
             .for_each(|op| self.emit_opcode(op));
@@ -508,7 +508,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn expression_statement(&mut self) {
         self.expression();
         self.consume(TokenType::Semicolon, "Expected ';' after expression.");
-        self.emit_opcode(OpCode::OpPop);
+        self.emit_opcode(OpCode::Pop);
     }
 
     fn expression(&mut self) {
@@ -522,16 +522,16 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.parse_precedence(precedence);
 
         match &operator {
-            TokenType::BangEqual => emit_opcodes!(self, OpCode::OpEqual, OpCode::OpNot),
-            TokenType::EqualEqual => self.emit_opcode(OpCode::OpEqual),
-            TokenType::Greater => self.emit_opcode(OpCode::OpGreater),
-            TokenType::GreaterEqual => emit_opcodes!(self, OpCode::OpLess, OpCode::OpNot),
-            TokenType::Less => self.emit_opcode(OpCode::OpLess),
-            TokenType::LessEqual => emit_opcodes!(self, OpCode::OpGreater, OpCode::OpNot),
-            TokenType::Plus => self.emit_opcode(OpCode::OpAdd),
-            TokenType::Minus => self.emit_opcode(OpCode::OpSubtract),
-            TokenType::Star => self.emit_opcode(OpCode::OpMultiply),
-            TokenType::Slash => self.emit_opcode(OpCode::OpDivide),
+            TokenType::BangEqual => emit_opcodes!(self, OpCode::Equal, OpCode::Not),
+            TokenType::EqualEqual => self.emit_opcode(OpCode::Equal),
+            TokenType::Greater => self.emit_opcode(OpCode::Greater),
+            TokenType::GreaterEqual => emit_opcodes!(self, OpCode::Less, OpCode::Not),
+            TokenType::Less => self.emit_opcode(OpCode::Less),
+            TokenType::LessEqual => emit_opcodes!(self, OpCode::Greater, OpCode::Not),
+            TokenType::Plus => self.emit_opcode(OpCode::Add),
+            TokenType::Minus => self.emit_opcode(OpCode::Subtract),
+            TokenType::Star => self.emit_opcode(OpCode::Multiply),
+            TokenType::Slash => self.emit_opcode(OpCode::Divide),
             _ => unreachable!(),
         }
     }
@@ -540,8 +540,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         let operator_type = self.previous.get_token_type();
         self.parse_precedence(Precedence::Unary);
         match operator_type {
-            TokenType::Bang => self.emit_opcode(OpCode::OpNot),
-            TokenType::Minus => self.emit_opcode(OpCode::OpNegate),
+            TokenType::Bang => self.emit_opcode(OpCode::Not),
+            TokenType::Minus => self.emit_opcode(OpCode::Negate),
             _ => unreachable!(),
         }
     }
@@ -576,13 +576,13 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             let arg_count = self.argument_list();
             let super_dummy_token = self.synthetic_token(TokenType::Identifier, &SUPER);
             self.named_variable(super_dummy_token, false);
-            self.emit_opcode(OpCode::OpSuperInvoke);
+            self.emit_opcode(OpCode::SuperInvoke);
             self.emit_index(name);
             self.emit_index(arg_count);
         } else {
             let super_dummy_token = self.synthetic_token(TokenType::Identifier, &SUPER);
             self.named_variable(super_dummy_token, false);
-            self.emit_opcode(OpCode::OpGetSuper);
+            self.emit_opcode(OpCode::GetSuper);
             self.emit_index(name);
         }
     }
@@ -602,14 +602,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
 
         let (get, set) = if arg != -1 {
-            (OpCode::OpGetLocal, OpCode::OpSetLocal)
+            (OpCode::GetLocal, OpCode::SetLocal)
         } else {
             arg = self.resolve_upvalue(self.compilers.len() - 1, &name);
             if arg != -1 {
-                (OpCode::OpGetUpvalue, OpCode::OpSetUpvalue)
+                (OpCode::GetUpvalue, OpCode::SetUpvalue)
             } else {
                 arg = self.identifier_constant(name.get_lexeme_string()) as isize;
-                (OpCode::OpGetGlobal, OpCode::OpSetGlobal)
+                (OpCode::GetGlobal, OpCode::SetGlobal)
             }
         };
 
@@ -666,9 +666,9 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn literal(&mut self) {
         match self.previous.get_token_type() {
-            TokenType::True => self.emit_opcode(OpCode::OpTrue),
-            TokenType::False => self.emit_opcode(OpCode::OpFalse),
-            TokenType::Nil => self.emit_opcode(OpCode::OpNil),
+            TokenType::True => self.emit_opcode(OpCode::True),
+            TokenType::False => self.emit_opcode(OpCode::False),
+            TokenType::Nil => self.emit_opcode(OpCode::Nil),
             _ => unreachable!(),
         }
     }
@@ -681,17 +681,17 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn and(&mut self) {
-        let end_jump = self.emit_jump(OpCode::OpJumpIfFalse);
-        self.emit_opcode(OpCode::OpPop);
+        let end_jump = self.emit_jump(OpCode::JumpIfFalse);
+        self.emit_opcode(OpCode::Pop);
         self.parse_precedence(Precedence::And);
         self.patch_jump(end_jump);
     }
 
     fn or(&mut self) {
-        let else_jump = self.emit_jump(OpCode::OpJumpIfFalse);
-        let end_jump = self.emit_jump(OpCode::OpJump);
+        let else_jump = self.emit_jump(OpCode::JumpIfFalse);
+        let end_jump = self.emit_jump(OpCode::Jump);
         self.patch_jump(else_jump);
-        self.emit_opcode(OpCode::OpPop);
+        self.emit_opcode(OpCode::Pop);
         self.parse_precedence(Precedence::Or);
         self.patch_jump(end_jump);
     }
@@ -729,7 +729,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn emit_constant(&mut self, value: Value) {
-        self.emit_opcode(OpCode::OpConstant);
+        self.emit_opcode(OpCode::Constant);
         let index = self.make_constant(value);
         self.emit_index(index);
     }
@@ -747,13 +747,13 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn emit_return(&mut self) {
         match self.current_compiler().get_function_builder().get_kind() {
             FunctionType::Initializer => {
-                self.emit_opcode(OpCode::OpGetLocal);
+                self.emit_opcode(OpCode::GetLocal);
                 self.emit_index(0)
             }
-            _ => self.emit_opcode(OpCode::OpNil),
+            _ => self.emit_opcode(OpCode::Nil),
         }
 
-        self.emit_opcode(OpCode::OpReturn);
+        self.emit_opcode(OpCode::Return);
     }
 
     fn emit_opcode(&mut self, opcode: OpCode) {
@@ -770,13 +770,13 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn emit_jump(&mut self, opcode: OpCode) -> Patch {
-        assert!(matches!(opcode, OpCode::OpJump | OpCode::OpJumpIfFalse));
+        assert!(matches!(opcode, OpCode::Jump | OpCode::JumpIfFalse));
         self.emit_opcode(opcode);
         self.current_chunk().write_patch()
     }
 
     fn emit_loop(&mut self, loop_start: usize) {
-        self.emit_opcode(OpCode::OpLoop);
+        self.emit_opcode(OpCode::Loop);
 
         let offset = self.current_chunk().len() - loop_start + 2;
 

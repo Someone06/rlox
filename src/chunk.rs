@@ -204,46 +204,42 @@ impl Chunk {
         let opcode = unsafe { code_unit.get_opcode() };
 
         match opcode {
-            OpCode::OpConstant
-            | OpCode::OpDefineGlobal
-            | OpCode::OpGetGlobal
-            | OpCode::OpSetGlobal
-            | OpCode::OpClass
-            | OpCode::OpGetProperty
-            | OpCode::OpSetProperty
-            | OpCode::OpMethod
-            | OpCode::OpGetSuper => self.constant_instruction(opcode, offset, writer),
-            OpCode::OpGetLocal
-            | OpCode::OpSetLocal
-            | OpCode::OpGetUpvalue
-            | OpCode::OpSetUpvalue
-            | OpCode::OpCall => self.byte_instruction(opcode, offset, writer),
-            OpCode::OpReturn
-            | OpCode::OpPrint
-            | OpCode::OpPop
-            | OpCode::OpEqual
-            | OpCode::OpLess
-            | OpCode::OpGreater
-            | OpCode::OpNegate
-            | OpCode::OpNot
-            | OpCode::OpAdd
-            | OpCode::OpSubtract
-            | OpCode::OpMultiply
-            | OpCode::OpDivide
-            | OpCode::OpTrue
-            | OpCode::OpFalse
-            | OpCode::OpNil
-            | OpCode::OpCloseUpvalue
-            | OpCode::OpInherit => self.simple_instruction(opcode, offset, writer),
+            OpCode::Constant
+            | OpCode::DefineGlobal
+            | OpCode::GetGlobal
+            | OpCode::SetGlobal
+            | OpCode::Class
+            | OpCode::GetProperty
+            | OpCode::SetProperty
+            | OpCode::Method
+            | OpCode::GetSuper => self.constant_instruction(opcode, offset, writer),
+            OpCode::GetLocal
+            | OpCode::SetLocal
+            | OpCode::GetUpvalue
+            | OpCode::SetUpvalue
+            | OpCode::Call => self.byte_instruction(opcode, offset, writer),
+            OpCode::Return
+            | OpCode::Print
+            | OpCode::Pop
+            | OpCode::Equal
+            | OpCode::Less
+            | OpCode::Greater
+            | OpCode::Negate
+            | OpCode::Not
+            | OpCode::Add
+            | OpCode::Subtract
+            | OpCode::Multiply
+            | OpCode::Divide
+            | OpCode::True
+            | OpCode::False
+            | OpCode::Nil
+            | OpCode::CloseUpvalue
+            | OpCode::Inherit => self.simple_instruction(opcode, offset, writer),
 
-            OpCode::OpJump | OpCode::OpJumpIfFalse => {
-                self.jump_instruction(opcode, offset, 1, writer)
-            }
-            OpCode::OpLoop => self.jump_instruction(opcode, offset, -1, writer),
-            OpCode::OpClosure => self.closure(opcode, offset, writer),
-            OpCode::OpInvoke | OpCode::OpSuperInvoke => {
-                self.invoke_instruction(opcode, offset, writer)
-            }
+            OpCode::Jump | OpCode::JumpIfFalse => self.jump_instruction(opcode, offset, 1, writer),
+            OpCode::Loop => self.jump_instruction(opcode, offset, -1, writer),
+            OpCode::Closure => self.closure(opcode, offset, writer),
+            OpCode::Invoke | OpCode::SuperInvoke => self.invoke_instruction(opcode, offset, writer),
         }
     }
 
@@ -542,7 +538,7 @@ mod tests {
     #[test]
     fn disassemble_constant() {
         let mut chunk_builder = ChunkBuilder::new();
-        chunk_builder.write_opcode(OpCode::OpConstant, 0);
+        chunk_builder.write_opcode(OpCode::Constant, 0);
         chunk_builder.write_index(0);
         chunk_builder.add_constant(Value::Double(2.0));
 
@@ -553,7 +549,7 @@ mod tests {
             .unwrap();
 
         let result = std::str::from_utf8(&buffer).expect("Just wrote a string into the buffer");
-        assert_eq!(result, "== test chunk ==\n0000    0 OpConstant    0 '2'\n")
+        assert_eq!(result, "== test chunk ==\n0000    0 Constant    0 '2'\n")
     }
 
     macro_rules! test_stack_only_op {
@@ -573,12 +569,12 @@ mod tests {
 
     #[test]
     fn disassemble_stack_only_op() {
-        test_stack_only_op!(OpCode::OpAdd);
-        test_stack_only_op!(OpCode::OpSubtract);
-        test_stack_only_op!(OpCode::OpNegate);
-        test_stack_only_op!(OpCode::OpMultiply);
-        test_stack_only_op!(OpCode::OpDivide);
-        test_stack_only_op!(OpCode::OpReturn);
+        test_stack_only_op!(OpCode::Add);
+        test_stack_only_op!(OpCode::Subtract);
+        test_stack_only_op!(OpCode::Negate);
+        test_stack_only_op!(OpCode::Multiply);
+        test_stack_only_op!(OpCode::Divide);
+        test_stack_only_op!(OpCode::Return);
     }
 
     #[test]
@@ -586,7 +582,7 @@ mod tests {
     fn require_opcode_first() {
         let mut chunk_builder = ChunkBuilder::new();
         chunk_builder.write_index(0);
-        chunk_builder.write_opcode(OpCode::OpReturn, 0);
+        chunk_builder.write_opcode(OpCode::Return, 0);
         chunk_builder.add_constant(Value::Double(0.0));
         let _ = chunk_builder.build();
     }
@@ -595,8 +591,8 @@ mod tests {
     #[should_panic]
     fn require_index() {
         let mut chunk_builder = ChunkBuilder::new();
-        chunk_builder.write_opcode(OpCode::OpConstant, 0);
-        chunk_builder.write_opcode(OpCode::OpConstant, 1);
+        chunk_builder.write_opcode(OpCode::Constant, 0);
+        chunk_builder.write_opcode(OpCode::Constant, 1);
         chunk_builder.write_index(0);
         chunk_builder.write_index(1);
         chunk_builder.add_constant(Value::Double(0.0));
@@ -608,21 +604,21 @@ mod tests {
     #[should_panic]
     fn too_many_indexes() {
         let mut chunk_builder = ChunkBuilder::new();
-        chunk_builder.write_opcode(OpCode::OpConstant, 0);
+        chunk_builder.write_opcode(OpCode::Constant, 0);
         chunk_builder.write_index(0);
         chunk_builder.add_constant(Value::Double(0.0));
         chunk_builder.write_index(1);
         chunk_builder.add_constant(Value::Double(1.0));
-        chunk_builder.write_opcode(OpCode::OpReturn, 1);
+        chunk_builder.write_opcode(OpCode::Return, 1);
         let _ = chunk_builder.build();
     }
 
     #[test]
     fn patch() {
         let mut chunk_builder = ChunkBuilder::new();
-        chunk_builder.write_opcode(OpCode::OpJump, 0);
+        chunk_builder.write_opcode(OpCode::Jump, 0);
         let patch = chunk_builder.write_patch();
-        chunk_builder.write_opcode(OpCode::OpReturn, 1);
+        chunk_builder.write_opcode(OpCode::Return, 1);
         unsafe { patch.apply(0u16) };
         let _ = chunk_builder.build();
     }
@@ -631,9 +627,9 @@ mod tests {
     #[should_panic]
     fn missing_patch() {
         let mut chunk_builder = ChunkBuilder::new();
-        chunk_builder.write_opcode(OpCode::OpJump, 0);
+        chunk_builder.write_opcode(OpCode::Jump, 0);
         let _ = chunk_builder.write_patch();
-        chunk_builder.write_opcode(OpCode::OpReturn, 1);
+        chunk_builder.write_opcode(OpCode::Return, 1);
         let _ = chunk_builder.build();
     }
 }

@@ -89,7 +89,7 @@ impl<O: Write> VM<O> {
             }
 
             match opcode {
-                OpCode::OpReturn => {
+                OpCode::Return => {
                     let value = self.stack.pop().unwrap();
                     let frame = self.frames.pop().unwrap();
                     self.close_upvalues(frame.get_slots());
@@ -103,13 +103,13 @@ impl<O: Write> VM<O> {
                         self.stack.push(value);
                     }
                 }
-                OpCode::OpPrint => {
+                OpCode::Print => {
                     let _ = writeln!(self.print_output, "{}", self.stack.pop().unwrap());
                 }
-                OpCode::OpPop => {
+                OpCode::Pop => {
                     self.stack.pop();
                 }
-                OpCode::OpDefineGlobal => {
+                OpCode::DefineGlobal => {
                     // Safety: OpDefineGlobal requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let name = unsafe { self.read_constant() }.clone();
@@ -120,7 +120,7 @@ impl<O: Write> VM<O> {
                         unreachable!("OpDefineGlobal has an index pointing to a string which is enforced int the compiler.");
                     }
                 }
-                OpCode::OpGetGlobal => {
+                OpCode::GetGlobal => {
                     // Safety: OpGetGlobal requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let name = unsafe { self.read_constant() }.clone();
@@ -137,7 +137,7 @@ impl<O: Write> VM<O> {
                         unreachable!("OpGetGlobal has an index pointing to a string which is enforced int the compiler.");
                     }
                 }
-                OpCode::OpSetGlobal => {
+                OpCode::SetGlobal => {
                     // Safety: OpSetGlobal requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let name = unsafe { self.read_constant() }.clone();
@@ -154,7 +154,7 @@ impl<O: Write> VM<O> {
                         unreachable!("OpSetGlobal has an index pointing to a string which is enforced int the compiler.");
                     }
                 }
-                OpCode::OpGetLocal => {
+                OpCode::GetLocal => {
                     // Safety: OpGetLocal requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let slot = unsafe { self.read_index() };
@@ -162,7 +162,7 @@ impl<O: Write> VM<O> {
                     let value = self.stack[frame.get_slots() + slot as usize].clone();
                     self.stack.push(value);
                 }
-                OpCode::OpSetLocal => {
+                OpCode::SetLocal => {
                     // Safety: OpSetLocal requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let slot = unsafe { self.read_index() };
@@ -170,7 +170,7 @@ impl<O: Write> VM<O> {
                     let value = self.stack.last().unwrap().clone();
                     self.stack[frame.get_slots() + slot as usize] = value;
                 }
-                OpCode::OpGetUpvalue => {
+                OpCode::GetUpvalue => {
                     // Safety: OpGetUpvalue requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let slot = unsafe { self.read_index() } as usize;
@@ -182,7 +182,7 @@ impl<O: Write> VM<O> {
                     };
                     self.stack.push(value);
                 }
-                OpCode::OpSetUpvalue => {
+                OpCode::SetUpvalue => {
                     // Safety: OpGetUpvalue requires a index. The index is written by the compiler
                     //         into the chunk and the chunk ensures that it is written.
                     let slot = unsafe { self.read_index() } as usize;
@@ -199,7 +199,7 @@ impl<O: Write> VM<O> {
                             .set_location_value(value);
                     }
                 }
-                OpCode::OpNegate => {
+                OpCode::Negate => {
                     match self
                         .stack
                         .last_mut()
@@ -212,7 +212,7 @@ impl<O: Write> VM<O> {
                         }
                     }
                 }
-                OpCode::OpAdd => {
+                OpCode::Add => {
                     let b = self
                         .stack
                         .pop()
@@ -233,7 +233,7 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
-                OpCode::OpSubtract => {
+                OpCode::Subtract => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
                             Ok(Value::Double(f1 - f2))
@@ -243,7 +243,7 @@ impl<O: Write> VM<O> {
                     };
                     self.binary_double_op(function)?;
                 }
-                OpCode::OpMultiply => {
+                OpCode::Multiply => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
                             Ok(Value::Double(f1 * f2))
@@ -253,7 +253,7 @@ impl<O: Write> VM<O> {
                     };
                     self.binary_double_op(function)?;
                 }
-                OpCode::OpDivide => {
+                OpCode::Divide => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
                             Ok(Value::Double(f1 / f2))
@@ -263,16 +263,16 @@ impl<O: Write> VM<O> {
                     };
                     self.binary_double_op(function)?;
                 }
-                OpCode::OpNot => {
+                OpCode::Not => {
                     let value = Value::Bool(self.stack.pop().unwrap().is_falsy());
                     self.stack.push(value);
                 }
-                OpCode::OpEqual => {
+                OpCode::Equal => {
                     let b = self.stack.pop().unwrap();
                     let a = self.stack.pop().unwrap();
                     self.stack.push(Value::Bool(a == b));
                 }
-                OpCode::OpLess => {
+                OpCode::Less => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
                             Ok(Value::Bool(f1 < f2))
@@ -282,7 +282,7 @@ impl<O: Write> VM<O> {
                     };
                     self.binary_double_op(function)?;
                 }
-                OpCode::OpGreater => {
+                OpCode::Greater => {
                     let function = |a, b| {
                         if let (Value::Double(f1), Value::Double(f2)) = (a, b) {
                             Ok(Value::Bool(f1 > f2))
@@ -293,7 +293,7 @@ impl<O: Write> VM<O> {
                     self.binary_double_op(function)?;
                 }
 
-                OpCode::OpConstant => {
+                OpCode::Constant => {
                     // Safety: We know that OpConstant takes one arguments to which self.ip points,
                     //         because it is incremented after reading this opcode.
                     //         Also self.ip gets incremented after reading the constant so it will
@@ -302,11 +302,11 @@ impl<O: Write> VM<O> {
                     self.stack.push(value);
                 }
 
-                OpCode::OpTrue => self.stack.push(Value::Bool(true)),
-                OpCode::OpFalse => self.stack.push(Value::Bool(false)),
-                OpCode::OpNil => self.stack.push(Value::Nil),
+                OpCode::True => self.stack.push(Value::Bool(true)),
+                OpCode::False => self.stack.push(Value::Bool(false)),
+                OpCode::Nil => self.stack.push(Value::Nil),
 
-                OpCode::OpJump => {
+                OpCode::Jump => {
                     // Safety: We know that OpJump takes two arguments to which self.ip points, and
                     //         it is incremented by two after reading this opcode. The offset has
                     //         been calculated in the compiler s.t. self.ip points to an opcode
@@ -314,7 +314,7 @@ impl<O: Write> VM<O> {
                     let offset = unsafe { self.read_short() };
                     self.frames.last_mut().unwrap().inc_ip(offset as usize);
                 }
-                OpCode::OpJumpIfFalse => {
+                OpCode::JumpIfFalse => {
                     // Safety: We know that OpJumpIfFalse takes two arguments to which self.ip
                     //         points, and it is incremented by two after reading this opcode.
                     //         If the current value is true-thy ip just points to the next opcode.
@@ -325,7 +325,7 @@ impl<O: Write> VM<O> {
                         self.frames.last_mut().unwrap().inc_ip(offset as usize);
                     }
                 }
-                OpCode::OpLoop => {
+                OpCode::Loop => {
                     // Safety: We know that OpLoop takes two arguments to which self.ip
                     //         points, and it is incremented by two after reading this opcode.
                     //         The offset has been calculated in the compiler s.t. self.ip
@@ -333,14 +333,14 @@ impl<O: Write> VM<O> {
                     let offset = unsafe { self.read_short() };
                     self.frames.last_mut().unwrap().dec_ip(offset as usize);
                 }
-                OpCode::OpCall => {
+                OpCode::Call => {
                     let arg_count = unsafe { self.read_index() };
                     let callee = self.stack[self.stack.len() - 1 - arg_count as usize].clone();
                     if !self.call_value(callee, arg_count) {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
-                OpCode::OpClosure => {
+                OpCode::Closure => {
                     // Safety: We know that OpClosure takes one arguments to which self.ip points,
                     //         because it is incremented after reading this opcode.
                     //         Also self.ip gets incremented after reading the constant so it will
@@ -371,11 +371,11 @@ impl<O: Write> VM<O> {
                         panic!("Expected a function value.");
                     }
                 }
-                OpCode::OpCloseUpvalue => {
+                OpCode::CloseUpvalue => {
                     self.close_upvalues(self.stack.len() - 1);
                     self.stack.pop();
                 }
-                OpCode::OpClass => {
+                OpCode::Class => {
                     // Safety: We know that OpClass takes one arguments to which self.ip points,
                     //         because it is incremented after reading this opcode.
                     //         Also self.ip gets incremented after reading the constant so it will
@@ -384,7 +384,7 @@ impl<O: Write> VM<O> {
                     let clazz = ClazzRef::from(Clazz::new(name));
                     self.stack.push(Value::Class(clazz));
                 }
-                OpCode::OpGetProperty => {
+                OpCode::GetProperty => {
                     // Safety: We know that OpGetProperty takes one arguments to which self.ip
                     //         points, because it is incremented after reading this opcode.
                     //         Also self.ip gets incremented after reading the constant so it will
@@ -407,7 +407,7 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
-                OpCode::OpSetProperty => {
+                OpCode::SetProperty => {
                     // Safety: We know that OpGetProperty takes one arguments to which self.ip
                     //         points, because it is incremented after reading this opcode.
                     //         Also self.ip gets incremented after reading the constant so it will
@@ -424,7 +424,7 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
-                OpCode::OpMethod => {
+                OpCode::Method => {
                     // Safety: We know that OpMethod takes one arguments to which self.ip
                     //         points, because it is incremented after reading this opcode.
                     //         Also self.ip gets incremented after reading the constant so it will
@@ -433,7 +433,7 @@ impl<O: Write> VM<O> {
                     self.define_method(name);
                 }
 
-                OpCode::OpInvoke => {
+                OpCode::Invoke => {
                     let method = unsafe { self.read_string() }.clone();
                     let arg_count = unsafe { self.read_index() };
                     let success = self.invoke(&method, arg_count);
@@ -441,7 +441,7 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
-                OpCode::OpInherit => {
+                OpCode::Inherit => {
                     let len = self.stack.len();
                     if let Value::Class(superclass) = &self.stack[len - 2] {
                         if let Value::Class(mut subclass) = self.stack.last().unwrap().clone() {
@@ -459,7 +459,7 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
-                OpCode::OpGetSuper => {
+                OpCode::GetSuper => {
                     // Safety: We know that OpGetSuper takes one arguments to which self.ip
                     //         points, because it is incremented after reading this opcode.
                     //         Also self.ip gets incremented after reading the constant so it will
@@ -474,7 +474,7 @@ impl<O: Write> VM<O> {
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
-                OpCode::OpSuperInvoke => {
+                OpCode::SuperInvoke => {
                     // Safety: We know that OpSuperInvoke takes two arguments to which self.ip
                     //         points, because it is incremented after reading this opcode.
                     //         Also self.ip gets incremented after reading the constant so it will
