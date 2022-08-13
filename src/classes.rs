@@ -7,6 +7,10 @@ use crate::function::Closure;
 use crate::intern_string::Symbol;
 use crate::value::Value;
 
+/// This module contains all the structure need to implement classes, instances and binding methods
+/// to variables.
+
+/// A class has a name and any number of methods.
 #[derive(Debug)]
 pub struct Clazz {
     name: Symbol,
@@ -34,7 +38,7 @@ impl Clazz {
     }
 
     pub fn get_method(&self, name: &Symbol) -> Option<Rc<Closure>> {
-        self.methods.get(name).map(|rc| Rc::clone(rc))
+        self.methods.get(name).map(Rc::clone)
     }
 
     pub fn get_methods(&self) -> impl ExactSizeIterator<Item = (&Symbol, &Rc<Closure>)> {
@@ -48,6 +52,9 @@ impl std::fmt::Display for Clazz {
     }
 }
 
+/// Several mutable reference to the same Clazz are needed during run time. Because Rust's borrowing
+/// do not allow this we use the ClazzRef struct which pushes the borrow checks to become run-time
+/// rather than compile-time checks.
 #[derive(Clone, Debug)]
 pub struct ClazzRef {
     clazz: Rc<RefCell<Clazz>>,
@@ -91,6 +98,7 @@ impl std::fmt::Display for ClazzRef {
     }
 }
 
+/// An instance of a class hold values that are assigned to that instance.
 #[derive(Debug)]
 pub struct Instance {
     clazz: ClazzRef,
@@ -124,6 +132,9 @@ impl std::fmt::Display for Instance {
     }
 }
 
+/// Analogue to how we need ClazzRef, several mutable reference to the same Instance are needed
+/// during run time. Because Rust's borrowing do not allow this we use the InstanceRef struct, which
+/// pushes the borrow checks to become run-time rather than compile-time checks.
 #[derive(Clone, Debug)]
 pub struct InstanceRef {
     instance: Rc<RefCell<Instance>>,
@@ -175,6 +186,8 @@ impl std::fmt::Display for InstanceRef {
     }
 }
 
+/// Lox supports reference to methods, capturing the 'this' instance, on which the method should be
+/// invoked.
 #[derive(Debug)]
 pub struct BoundMethod {
     receiver: Box<Value>,
