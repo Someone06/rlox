@@ -6,6 +6,23 @@ use std::rc::Rc;
 use crate::opcodes::{IndexesPerOpCode, OpCode};
 use crate::value::Value;
 
+/// This module supports creating and disassembling a chunk of code consisting of Opcode and
+/// integer arguments using the builder pattern.
+///
+/// A ChunkBuilder can be used to construct a chunk.
+/// The builder patter is used to add extra run-time correctness checks for the produced chunk,
+/// however, it is still possible to create ill-formed chunk.
+///
+/// Besides opcodes and arguments a chunk can contain constants. Adding a constant yields an index,
+/// that can be used to refer to the constant.
+///
+/// Lastly, the ChunkBuilder allows for adding patches. These are punch-holes in the linear
+/// instruction sequence that can be filled in later. This is in particular useful when adding jump
+/// forward instructions, that is, when the index of the instruction which should be jumped to is
+/// not know at the time the jump instruction is written. Adding a path allows to continue appending
+/// instruction and filling the patch with the concrete index which should be jumped to later on
+/// when the exact index is known.
+
 /// Some opcodes require arguments in form of values (e.g. doubles or strings).
 /// Instead of storing these inline we have a separate pool for values in which we index.
 /// The indexes are stored inline in the instruction sequence.
@@ -224,7 +241,9 @@ impl Chunk {
             }
             OpCode::OpLoop => self.jump_instruction(opcode, offset, -1, writer),
             OpCode::OpClosure => self.closure(opcode, offset, writer),
-            OpCode::OpInvoke | OpCode::OpSuperInvoke => self.invoke_instruction(opcode, offset, writer),
+            OpCode::OpInvoke | OpCode::OpSuperInvoke => {
+                self.invoke_instruction(opcode, offset, writer)
+            }
         }
     }
 
