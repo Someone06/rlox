@@ -144,7 +144,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn for_statement(&mut self) {
-        // Variables decleared in a for-loop live in their own scope.
+        // Variables declared in a for-loop live in their own scope.
         self.begin_scope();
         self.consume(TokenType::LeftParen, "Expected '(' after 'for'.");
 
@@ -660,7 +660,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             .previous
             .get_lexeme_string()
             .parse::<f64>()
-            .expect("Expected the lexme to be a number.");
+            .expect("Expected the lexeme to be a number.");
         self.emit_constant(Value::Double(value));
     }
 
@@ -674,8 +674,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn string(&mut self) {
-        let lexme = self.previous.get_lexeme();
-        let string = lexme[1..lexme.len() - 1].iter().collect::<String>();
+        let lexeme = self.previous.get_lexeme();
+        let string = lexeme[1..lexeme.len() - 1].iter().collect::<String>();
         let intern = self.symbol_table.intern(string);
         self.emit_constant(Value::String(intern));
     }

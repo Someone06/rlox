@@ -88,8 +88,8 @@ mod tests {
     #[test]
     fn more_strings() {
         let mut table = SymbolTable::new();
-        let strs = vec!["Hello", "42", "1337", "\"'$$%&\"", "World"];
-        let strings = strs
+        let literals = vec!["Hello", "42", "1337", "\"'$$%&\"", "World"];
+        let strings = literals
             .iter()
             .map(|s| String::from(*s))
             .collect::<Vec<String>>();
@@ -97,10 +97,11 @@ mod tests {
             .iter()
             .map(|s| table.intern(s.clone()))
             .collect::<HashSet<Symbol>>();
-        assert_eq!(strs.len(), interned.len());
+        assert_eq!(strings.len(), interned.len());
 
         assert_eq!(
-            strs.iter()
+            literals
+                .iter()
                 .rev()
                 .map(|s| String::from(*s))
                 .map(|s| table.intern(s))

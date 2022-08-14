@@ -67,10 +67,10 @@ pub struct Token<'a> {
 }
 
 impl<'a> Token<'a> {
-    pub fn new(token_type: TokenType, lexme: &'a [char], line: u32) -> Self {
+    pub fn new(token_type: TokenType, lexeme: &'a [char], line: u32) -> Self {
         Token {
             token_type,
-            lexeme: lexme,
+            lexeme,
             line,
         }
     }

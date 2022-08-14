@@ -90,12 +90,12 @@ impl<'a> ScannerImpl<'a> {
         self.start = self.current;
 
         if self.is_at_end() {
-            if self.returned_eof {
-                return None;
+            return if self.returned_eof {
+                None
             } else {
                 self.returned_eof = true;
-                return Some(self.make_token(TokenType::EOF));
-            }
+                Some(self.make_token(TokenType::EOF))
+            };
         }
 
         let c = self.advance();
@@ -104,7 +104,7 @@ impl<'a> ScannerImpl<'a> {
             return Some(self.identifier());
         }
 
-        if c.is_digit(10) {
+        if c.is_ascii_digit() {
             return Some(self.number());
         }
 
@@ -160,7 +160,7 @@ impl<'a> ScannerImpl<'a> {
     }
 
     fn identifier(&mut self) -> Token<'a> {
-        while !self.is_at_end() && (is_alpha(self.peek()) || self.peek().is_digit(10)) {
+        while !self.is_at_end() && (is_alpha(self.peek()) || self.peek().is_ascii_digit()) {
             self.advance();
         }
 
@@ -239,15 +239,15 @@ impl<'a> ScannerImpl<'a> {
     }
 
     fn number(&mut self) -> Token<'a> {
-        while !self.is_at_end() && self.peek().is_digit(10) {
+        while !self.is_at_end() && self.peek().is_ascii_digit() {
             self.advance();
         }
 
-        if !self.is_at_end() && self.peek() == '.' && self.peek_next().is_digit(10) {
+        if !self.is_at_end() && self.peek() == '.' && self.peek_next().is_ascii_digit() {
             self.advance();
         }
 
-        while !self.is_at_end() && self.peek().is_digit(10) {
+        while !self.is_at_end() && self.peek().is_ascii_digit() {
             self.advance();
         }
 
@@ -310,8 +310,8 @@ impl<'a> ScannerImpl<'a> {
     }
 
     fn make_token(&self, token_type: TokenType) -> Token<'a> {
-        let lexme = &self.source[self.start..self.current];
-        Token::new(token_type, lexme, self.line)
+        let lexeme = &self.source[self.start..self.current];
+        Token::new(token_type, lexeme, self.line)
     }
 
     fn error_token(&self, message: &'static [char]) -> Token<'a> {
