@@ -627,7 +627,7 @@ impl<O: Write> VM<O> {
             .get_method(name)
             .map(|m| self.call(m.deref().clone(), arg_count))
             .unwrap_or_else(|| {
-                self.runtime_error(format!("Undefined property '{}'.", name).as_str());
+                self.runtime_error(format!("Undefined property '{}'.\n", name).as_str());
                 false
             })
     }
@@ -638,7 +638,7 @@ impl<O: Write> VM<O> {
             self.stack.push(Value::BoundMethod(bound));
             true
         } else {
-            self.runtime_error(format!("Undefined property '{}.", name).as_str());
+            self.runtime_error(format!("Undefined property '{}'.\n", name).as_str());
             false
         }
     }
