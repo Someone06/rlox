@@ -17,3 +17,7 @@ path = "src/main.rs"
 [lib]
 name = "rlox"
 path = "src/lib.rs"
+
+[profile.release]
+lto = true
+panic = "abort"
