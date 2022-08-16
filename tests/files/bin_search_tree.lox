@@ -1,0 +1,90 @@
+//1
+//2
+//3
+//4
+//5
+//6
+//7
+//8
+//9
+//10
+
+class BinTreeNode {
+    init(left, item, right) {
+        this.left = left;
+        this.item = item;
+        this.right = right;
+    }
+
+    inorder(consumer) {
+        if(this.left != nil) this.left.inorder(consumer);
+        consumer(this.item);
+        if(this.right != nil) this.right.inorder(consumer);
+    }
+}
+
+class BinSearchTree {
+    init(val) {
+        this.root = BinTreeNode(nil, val, nil);
+    }
+
+    // Adds a value to the tree, if it does not already exist.
+    // All values added to the tree must be mutually comparable and form a
+    // total order.
+    add(val) {
+        var parent = nil;
+        var cursor = this.root;
+
+        // Travers the tree and look up where the new value should be placed.
+        while(cursor != nil and cursor.item != val) {
+            parent = cursor;
+            var item = cursor.item;
+            if(val < item) {
+                cursor = cursor.left;
+            } else if(val > item) {
+                cursor = cursor.right;
+            } else {
+                print "Error: class BinSearchTree: add(): Unreachable!";
+            }
+        }
+
+        // If the value is not already in the tree, determine whether it
+        // should be placed left or right to its parent, and insert the it.
+        if(cursor == nil) {
+            if(parent != nil) {
+               var item = parent.item;
+               if(val < parent.item) {
+                   parent.left = BinTreeNode(nil, val, nil);
+               } else if(val > parent.item) {
+                   parent.right = BinTreeNode(nil, val, nil);
+               } else {
+                print "Error: class BinSearchTree: add(): Unreachable!";
+               }
+            } else {
+                print "Error: class BinSearchTree: add(): Unreachable!";
+            }
+        }
+    }
+
+    get_root_node() {
+        return this.root;
+    }
+}
+
+
+var tree = BinSearchTree(1);
+tree.add(8);
+tree.add(4);
+tree.add(2);
+tree.add(3);
+tree.add(9);
+tree.add(5);
+tree.add(6);
+tree.add(10);
+tree.add(7);
+
+fun print_val(val) {
+    print val;
+}
+
+tree.get_root_node().inorder(print_val);

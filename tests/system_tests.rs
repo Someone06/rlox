@@ -68,5 +68,6 @@ tests! {
     method_reference,
     op_invoke,
     super_method_call,
-    super_get_closure
+    super_get_closure,
+    bin_search_tree
 }
