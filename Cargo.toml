@@ -10,6 +10,7 @@ weak-table = "0.3.2"
 
 [dev-dependencies]
 criterion = { version = "0.3.4", features = ["html_reports"] }
+pprof = { version = "0.10.0", features = ["flamegraph", "criterion"] }
 
 [lib]
 name = "rlox"
@@ -26,4 +27,7 @@ harness = false
 [profile.release]
 lto = true
 panic = "abort"
+
+[profile.bench]
+lto = true
 debug = true

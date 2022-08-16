@@ -1,11 +1,8 @@
-use std::io::sink;
-
 use criterion::{criterion_group, criterion_main, Criterion};
+use pprof::criterion::{Output, PProfProfiler};
 
-use rlox::{run_program as run, Error};
-
-fn run_program(file: &str) -> Result<(), Error> {
-    run(file, sink()).map(|_| ())
+fn run_program(file: &str) -> Result<(), rlox::Error> {
+    rlox::run_program(file, std::io::sink()).map(|_| ())
 }
 
 fn run_fib() {
@@ -19,5 +16,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("fib", |b| b.iter(run_fib));
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group! {
+    name = benches;
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = criterion_benchmark
+}
 criterion_main!(benches);
