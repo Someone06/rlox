@@ -17,7 +17,6 @@ lazy_static! {
     static ref STACK_TRACE_PATTERN: Regex = Regex::new(r"\[line (?P<line>\d+)\]").unwrap();
 }
 
-#[derive(PartialEq, Eq)]
 pub struct ExpectedOutput {
     line: usize,
     output: String,
@@ -46,6 +45,7 @@ pub struct Test {
     failures: Vec<String>,
 }
 
+#[derive(Debug)]
 pub enum TestParseError {
     CannotReadFile,
     HasCompileAndRuntimeError,
@@ -274,5 +274,15 @@ fn validate_output(test: &Test, actual_output_lines: &[String]) {
             expected.line_number(),
             actual
         );
+    }
+}
+
+#[test]
+fn test() {
+    let files = glob::glob("tests/crafting_interpreters_tests/*/*.lox").unwrap();
+    for path in files {
+        let path = path.unwrap();
+        let test = Test::parse(path.into()).unwrap();
+        run_and_validate_test(&test);
     }
 }
