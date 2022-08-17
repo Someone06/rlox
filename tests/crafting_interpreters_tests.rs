@@ -68,29 +68,32 @@ impl Test {
         for (line_number, line) in code.split('\n').enumerate() {
             if let Some(capture) = EXPECTED_OUTPUT_PATTERN.captures_iter(line).next() {
                 test.expected_output.push(ExpectedOutput::new(
-                    line_number,
+                    line_number + 1,
                     capture["expected"].to_string(),
                 ));
                 continue;
             }
 
             if let Some(capture) = EXPECTED_ERROR_PATTERN.captures_iter(line).next() {
-                test.expected_errors
-                    .push(format!("[{}] {}", line_number, &capture["error"]));
+                test.expected_errors.push(format!(
+                    "[line {}] {}",
+                    line_number + 1,
+                    &capture["error"]
+                ));
                 test.expected_exit_code = 65;
                 continue;
             }
 
             if let Some(capture) = ERROR_LINE_PATTERN.captures_iter(line).next() {
                 test.expected_errors
-                    .push(format!("[{}] {}", &capture["line"], &capture["error"]));
+                    .push(format!("[line {}] {}", &capture["line"], &capture["error"]));
                 test.expected_exit_code = 65;
                 continue;
             }
 
             if let Some(capture) = EXPECTED_RUNTIME_ERROR_PATTERN.captures_iter(line).next() {
                 test.expected_runtime_error = Some(ExpectedOutput::new(
-                    line_number,
+                    line_number + 1,
                     capture["error"].to_string(),
                 ));
                 test.expected_exit_code = 70;
@@ -161,12 +164,12 @@ fn run_and_validate_test(test: &Test) {
 fn validate_runtime_errors(test: &Test, actual_runtime_error: &[String]) {
     if let Some(expected_runtime_error) = test.expected_runtime_error() {
         assert!(
-            actual_runtime_error.len() >= 2,
+            !actual_runtime_error.is_empty(),
             "Expected runtime error '{}' but got none.",
             expected_runtime_error.line()
         );
         assert_eq!(
-            actual_runtime_error[0],
+            actual_runtime_error[0].split(':').last().unwrap(),
             expected_runtime_error.line(),
             "Expected runtime error '{}' but got '{}'",
             expected_runtime_error.line(),
@@ -214,8 +217,11 @@ fn validate_compiler_errors(test: &Test, actual_compiler_errors: &[String]) {
                 )
             }) {
             Some(actual_output) => {
-                let found_error =
-                    format!("[{}] {}", actual_output.line_number(), actual_output.line());
+                let found_error = format!(
+                    "[line {}] {}",
+                    actual_output.line_number(),
+                    actual_output.line()
+                );
                 assert!(
                     test.expected_errors().contains(&found_error),
                     "Unexpected error: '{}'",
