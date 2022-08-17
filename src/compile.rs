@@ -307,7 +307,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             self.variable(false);
 
             if class_name.get_lexeme() == self.previous.get_lexeme() {
-                self.error("A class cannot inherit from itself.");
+                self.error("A class can't inherit from itself.");
             }
 
             self.begin_scope();
