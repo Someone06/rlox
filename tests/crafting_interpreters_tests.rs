@@ -1,10 +1,6 @@
-extern crate proc_macro;
-
-use proc_macro::TokenStream;
 use std::path::{Path, PathBuf};
 
 use lazy_static::lazy_static;
-use quote::quote;
 use regex::Regex;
 
 lazy_static! {
@@ -285,40 +281,3 @@ pub fn test_program(path: &str) {
     let test = Test::parse(PathBuf::from(path)).unwrap();
     run_and_validate_test(&test);
 }
-
-#[proc_macro]
-pub fn make_tests(_item: TokenStream) -> TokenStream {
-    let files = glob::glob("tests/crafting_interpreters_tests/*/*.lox").unwrap();
-    let mut res = quote! {};
-
-    for path in files {
-        let path = path.unwrap();
-        let file_name = path.file_stem().unwrap().to_str().unwrap();
-        let dir_name = path
-            .parent()
-            .unwrap()
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap();
-        let path = path.to_str().unwrap();
-        let function_name = format!("{}_{}", dir_name, file_name);
-
-        let fun = quote! {
-            #[test]
-            fn #function_name() {
-               test_program(#path);
-            }
-        };
-
-        res = quote! {
-            #res
-
-            #fun
-        };
-    }
-
-    proc_macro::TokenStream::from(res)
-}
-
-//make_tests!();
