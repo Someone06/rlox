@@ -11,6 +11,8 @@ weak-table = "0.3.2"
 [dev-dependencies]
 criterion = { version = "0.3.4", features = ["html_reports"] }
 pprof = { version = "0.10.0", features = ["flamegraph", "criterion"] }
+regex = "1.6.0"
+lazy_static = "1.4.0"
 
 [lib]
 name = "rlox"
