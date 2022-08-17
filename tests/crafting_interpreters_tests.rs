@@ -17,6 +17,7 @@ lazy_static! {
     static ref STACK_TRACE_PATTERN: Regex = Regex::new(r"\[line (?P<line>\d+)\]").unwrap();
 }
 
+#[derive(PartialEq, Eq)]
 pub struct ExpectedOutput {
     line: usize,
     output: String,
@@ -124,6 +125,39 @@ impl Test {
     }
 }
 
+fn run_and_validate_test(test: &Test) {
+    let (_, output) = rlox::run_program(
+        test.path().to_str().unwrap(),
+        Vec::<u8>::new(),
+        Vec::<u8>::new(),
+        Vec::<u8>::new(),
+    );
+
+    let (compiler_out, vm_out, vm_err) = output.decompose();
+    let compiler_out = String::from_utf8(compiler_out)
+        .unwrap()
+        .lines()
+        .map(String::from)
+        .collect::<Vec<String>>();
+    let vm_out = String::from_utf8(vm_out)
+        .unwrap()
+        .lines()
+        .map(String::from)
+        .collect::<Vec<String>>();
+    let vm_err = String::from_utf8(vm_err)
+        .unwrap()
+        .lines()
+        .map(String::from)
+        .collect::<Vec<String>>();
+
+    validate_compiler_errors(test, &compiler_out);
+    validate_runtime_errors(test, &vm_err);
+    validate_output(test, &vm_out);
+
+    // TODO: Obtain exit code from VM.
+    // validate_exit_code(test, _);
+}
+
 fn validate_runtime_errors(test: &Test, actual_runtime_error: &[String]) {
     if let Some(expected_runtime_error) = test.expected_runtime_error() {
         assert!(
@@ -157,5 +191,88 @@ fn validate_runtime_errors(test: &Test, actual_runtime_error: &[String]) {
                 actual_runtime_error[1..].concat()
             ),
         };
+    }
+}
+
+fn validate_compiler_errors(test: &Test, actual_compiler_errors: &[String]) {
+    if test.expected_runtime_error().is_some() {
+        return;
+    }
+
+    let mut found_errors: Vec<String> = Vec::with_capacity(test.expected_errors().len());
+    for line in actual_compiler_errors
+        .iter()
+        .filter(|line| !line.is_empty())
+    {
+        match SYNTAX_ERROR_PATTERN
+            .captures_iter(line)
+            .next()
+            .map(|capture| {
+                ExpectedOutput::new(
+                    capture["line"].parse::<usize>().unwrap(),
+                    capture["error"].to_string(),
+                )
+            }) {
+            Some(actual_output) => {
+                let found_error =
+                    format!("[{}] {}", actual_output.line_number(), actual_output.line());
+                assert!(
+                    test.expected_errors().contains(&found_error),
+                    "Unexpected error: '{}'",
+                    line
+                );
+                found_errors.push(found_error);
+            }
+            None => panic!("Unexpected output on stderr: '{}'", line),
+        }
+    }
+
+    for expected_error in test.expected_errors() {
+        assert!(
+            found_errors.contains(expected_error),
+            "Missing expected error: '{}'",
+            expected_error
+        );
+    }
+}
+
+fn validate_exit_code(test: &Test, actual_exit_code: u32) {
+    assert_eq!(
+        actual_exit_code,
+        test.expected_exit_code(),
+        "Expected return code '{}’ but got '{}'",
+        test.expected_exit_code(),
+        actual_exit_code
+    );
+}
+
+fn validate_output(test: &Test, actual_output_lines: &[String]) {
+    let actual = match actual_output_lines
+        .last()
+        .map_or(false, |line| line.is_empty())
+    {
+        true => &actual_output_lines[1..],
+        false => actual_output_lines,
+    };
+
+    let expected = test.expected_output();
+    assert_eq!(
+        actual.len(),
+        expected.len(),
+        "Expected '{}' output lines but got '{}'.",
+        expected.len(),
+        actual.len()
+    );
+    for i in 0..expected.len() {
+        let expected = &expected[i];
+        let actual = &actual[i];
+        assert_eq!(
+            actual,
+            expected.line(),
+            "Expected output '{}' on line {} but got '{}'.",
+            expected.line(),
+            expected.line_number(),
+            actual
+        );
     }
 }
