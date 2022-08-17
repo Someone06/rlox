@@ -869,7 +869,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
         if !self.panic_mode {
             self.panic_mode = true;
             self.had_error = true;
-            error_at(&self.previous, message);
+            error_at(&self.previous, message, &mut self.error_writer);
         }
     }
 
@@ -877,7 +877,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
         if !self.panic_mode {
             self.panic_mode = true;
             self.had_error = true;
-            error_at(&self.current, message);
+            error_at(&self.current, message, &mut self.error_writer);
         }
     }
 
@@ -885,21 +885,20 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
         if !self.panic_mode {
             self.panic_mode = true;
             self.had_error = true;
-            error_at(token, message);
+            error_at(token, message, &mut self.error_writer);
         }
     }
 }
 
-fn error_at<'a>(token: &Token<'a>, message: &str) {
-    eprint!("[line {}] Error", token.get_line());
-
+fn error_at<'a, W: Write>(token: &Token<'a>, message: &str, write: &mut W) {
+    let mut msg = format!("[line {}] Error", token.get_line());
     if token.get_token_type() == TokenType::EOF {
-        eprint!(" at end");
+        msg.push_str(" at end");
     } else if token.get_token_type() != TokenType::Error {
-        eprint!(" at '{}'", token.get_lexeme_string())
-    }
-
-    eprintln!(": {}", message);
+        msg.push_str(format!(" at '{}'", token.get_lexeme_string()).as_str());
+    };
+    msg.push_str(format!(": {}", message).as_str());
+    writeln!(write, "{}", msg).unwrap();
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
