@@ -282,7 +282,7 @@ fn test() {
     let files = glob::glob("tests/crafting_interpreters_tests/*/*.lox").unwrap();
     for path in files {
         let path = path.unwrap();
-        let test = Test::parse(path.into()).unwrap();
+        let test = Test::parse(path).unwrap();
         run_and_validate_test(&test);
     }
 }
