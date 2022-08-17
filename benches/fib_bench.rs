@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use pprof::criterion::{Output, PProfProfiler};
 
 fn run_program(file: &str) -> Result<(), rlox::Error> {
-    rlox::run_program(file, std::io::sink()).map(|_| ())
+    rlox::run_program(file, std::io::sink(), std::io::sink(), std::io::sink()).0
 }
 
 fn run_fib() {
