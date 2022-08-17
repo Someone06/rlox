@@ -13,7 +13,7 @@ pub enum InterpretResult {
     RuntimeError,
 }
 
-pub struct VM<O: Write> {
+pub struct VM<O: Write, E: Write> {
     frames: Vec<CallFrame>,
     stack: Vec<Value>,
     symbol_table: SymbolTable,
@@ -21,9 +21,10 @@ pub struct VM<O: Write> {
     open_upvalues: Vec<ObjUpvalue>,
     init_symbol: Symbol,
     print_output: O,
+    error_output: E,
 }
 
-impl VM<std::io::Stdout> {
+impl VM<std::io::Stdout, std::io::Stderr> {
     pub fn new(closure: Closure, mut symbol_table: SymbolTable) -> Self {
         let init_symbol = symbol_table.intern(String::from("init"));
         let mut vm = VM {
@@ -34,6 +35,7 @@ impl VM<std::io::Stdout> {
             open_upvalues: Vec::new(),
             init_symbol,
             print_output: std::io::stdout(),
+            error_output: std::io::stderr(),
         };
 
         vm.stack.push(Value::Closure(closure.clone()));
@@ -43,8 +45,13 @@ impl VM<std::io::Stdout> {
     }
 }
 
-impl<O: Write> VM<O> {
-    pub fn with_write(closure: Closure, mut symbol_table: SymbolTable, write: O) -> Self {
+impl<O: Write, E: Write> VM<O, E> {
+    pub fn with_write(
+        closure: Closure,
+        mut symbol_table: SymbolTable,
+        print_output: O,
+        error_output: E,
+    ) -> Self {
         let init_symbol = symbol_table.intern(String::from("init"));
 
         let mut vm = VM {
@@ -54,7 +61,8 @@ impl<O: Write> VM<O> {
             frames: Vec::new(),
             open_upvalues: Vec::new(),
             init_symbol,
-            print_output: write,
+            print_output,
+            error_output,
         };
 
         vm.stack.push(Value::Closure(closure.clone()));
@@ -64,9 +72,12 @@ impl<O: Write> VM<O> {
     }
 }
 
-impl<O: Write> VM<O> {
-    pub fn interpret(mut self) -> Result<O, InterpretResult> {
-        self.run().map(|_| self.print_output)
+impl<O: Write, E: Write> VM<O, E> {
+    pub fn interpret(mut self) -> Result<(O, E), (InterpretResult, O, E)> {
+        match self.run() {
+            Ok(_) => Ok((self.print_output, self.error_output)),
+            Err(err) => Err((err, self.print_output, self.error_output)),
+        }
     }
 
     fn run(&mut self) -> Result<(), InterpretResult> {
@@ -758,7 +769,8 @@ impl<O: Write> VM<O> {
                 Some(name) => name.as_str(),
                 None => "script",
             };
-            eprint!(
+            let _ = writeln!(
+                self.error_output,
                 "[line {}] in {}(): {}",
                 function.get_chunk().get_source_code_line(ip),
                 name,

@@ -11,8 +11,10 @@ fn read_file(path: &str) -> Result<String, Error> {
 }
 
 fn capture_program(file: &str) -> Result<String, Error> {
-    let result = run_program(file, Vec::new())?;
-    String::from_utf8(result).map_err(|_| Error::IO)
+    match run_program(file, std::io::sink(), Vec::new(), std::io::sink()) {
+        (Ok(_), out) => String::from_utf8(out.decompose().1).map_err(|_| Error::IO),
+        (Err(error), _) => Err(error),
+    }
 }
 
 fn expected_result(path: &str) -> Result<String, Error> {

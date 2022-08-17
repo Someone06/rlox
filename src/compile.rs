@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::ops::DerefMut;
 
 use crate::chunk::{ChunkBuilder, Patch};
@@ -16,20 +17,21 @@ macro_rules! emit_opcodes {
         }};
 }
 
-pub struct Parser<'a, I: Iterator<Item = Token<'a>>> {
+pub struct Parser<'a, I: Iterator<Item = Token<'a>>, W: Write> {
     source: I,
     current: Token<'a>,
     previous: Token<'a>,
     had_error: bool,
     panic_mode: bool,
-    rules: ParseRules<'a, I>,
+    rules: ParseRules<'a, I, W>,
     symbol_table: SymbolTable,
     compilers: Vec<Compiler<'a>>,
     class_compilers: Vec<ClassCompiler>,
+    error_writer: W,
 }
 
-impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
-    pub fn new(source: I) -> Self {
+impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
+    pub fn new(source: I, error_writer: W) -> Self {
         let mut parser = Parser {
             source,
             current: Token::new(TokenType::Error, &[], 0),
@@ -40,13 +42,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             symbol_table: SymbolTable::new(),
             compilers: Vec::new(),
             class_compilers: Vec::new(),
+            error_writer,
         };
         parser.compilers.push(Compiler::new(FunctionType::Script));
         parser.advance();
         parser
     }
 
-    pub fn compile(mut self) -> Result<(Closure, SymbolTable), ()> {
+    pub fn compile(mut self) -> Result<(Closure, SymbolTable, W), W> {
         while !self.matches(TokenType::EOF) {
             self.declaration();
         }
@@ -54,14 +57,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         let function = self.end_compile();
 
         if self.had_error {
-            Err(())
+            Err(self.error_writer)
         } else {
-            Ok((Closure::new(function), self.symbol_table))
+            Ok((Closure::new(function), self.symbol_table, self.error_writer))
         }
     }
 }
 
-impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
+impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     fn declaration(&mut self) {
         if self.matches(TokenType::Class) {
             self.class_declaration();
@@ -938,18 +941,18 @@ impl std::fmt::Display for Precedence {
     }
 }
 
-type ParseFn<'a, I> = fn(compiler: &mut Parser<'a, I>, can_assign: bool);
+type ParseFn<'a, I, W> = fn(compiler: &mut Parser<'a, I, W>, can_assign: bool);
 
-struct ParseRule<'a, I: Iterator<Item = Token<'a>>> {
-    prefix: Option<ParseFn<'a, I>>,
-    infix: Option<ParseFn<'a, I>>,
+struct ParseRule<'a, I: Iterator<Item = Token<'a>>, W: Write> {
+    prefix: Option<ParseFn<'a, I, W>>,
+    infix: Option<ParseFn<'a, I, W>>,
     precedence: Precedence,
 }
 
-impl<'a, I: Iterator<Item = Token<'a>>> ParseRule<'a, I> {
+impl<'a, I: Iterator<Item = Token<'a>>, W: Write> ParseRule<'a, I, W> {
     fn new(
-        prefix: Option<ParseFn<'a, I>>,
-        infix: Option<ParseFn<'a, I>>,
+        prefix: Option<ParseFn<'a, I, W>>,
+        infix: Option<ParseFn<'a, I, W>>,
         precedence: Precedence,
     ) -> Self {
         ParseRule {
@@ -959,11 +962,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRule<'a, I> {
         }
     }
 
-    fn get_prefix(&self) -> Option<ParseFn<'a, I>> {
+    fn get_prefix(&self) -> Option<ParseFn<'a, I, W>> {
         self.prefix
     }
 
-    fn get_infix(&self) -> Option<ParseFn<'a, I>> {
+    fn get_infix(&self) -> Option<ParseFn<'a, I, W>> {
         self.infix
     }
 
@@ -972,11 +975,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRule<'a, I> {
     }
 }
 
-struct ParseRules<'a, I: Iterator<Item = Token<'a>>> {
-    rules: enum_map::EnumMap<TokenType, ParseRule<'a, I>>,
+struct ParseRules<'a, I: Iterator<Item = Token<'a>>, W: Write> {
+    rules: enum_map::EnumMap<TokenType, ParseRule<'a, I, W>>,
 }
 
-impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
+impl<'a, I: Iterator<Item = Token<'a>>, W: Write> ParseRules<'a, I, W> {
     fn new() -> Self {
         let rules = enum_map::enum_map! {
         TokenType::LeftParen    => ParseRule::new(Some(|c, _| c.grouping()), Some(|c, _| c.call()), Precedence::Call),
@@ -1024,7 +1027,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> ParseRules<'a, I> {
         ParseRules { rules }
     }
 
-    fn get(&self, token_type: TokenType) -> &ParseRule<'a, I> {
+    fn get(&self, token_type: TokenType) -> &ParseRule<'a, I, W> {
         &self.rules[token_type]
     }
 }
