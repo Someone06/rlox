@@ -1,0 +1,12 @@
+[package]
+name = "test_generator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+glob="0.3.0"
+syn={version = "1.0.99", default-features = false, features = ["parsing", "proc-macro"]}
+quote="1.0.21"
+
+[lib]
+proc-macro = true
