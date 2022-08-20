@@ -574,7 +574,7 @@ impl<O: Write, E: Write> VM<O, E> {
                 } else {
                     self.runtime_error(
                         format!(
-                            "Expected {} arguments, but got {}.",
+                            "Expected {} arguments but got {}.",
                             fun.get_arity(),
                             arg_count
                         )
@@ -596,7 +596,7 @@ impl<O: Write, E: Write> VM<O, E> {
                             true
                         } else {
                             self.runtime_error(
-                                format!("Expected 0 arguments, but got {}.", arg_count).as_str(),
+                                format!("Expected 0 arguments but got {}.", arg_count).as_str(),
                             );
                             false
                         }
