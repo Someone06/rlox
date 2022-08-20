@@ -431,7 +431,7 @@ impl<O: Write, E: Write> VM<O, E> {
                         instance.get_instance_mut().set_value(name, value.clone());
                         self.stack.push(value);
                     } else {
-                        self.runtime_error("Only instances have properties.");
+                        self.runtime_error("Only instances have fields.");
                         return Err(InterpretResult::RuntimeError);
                     }
                 }
