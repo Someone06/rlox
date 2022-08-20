@@ -35,7 +35,7 @@ impl std::fmt::Display for Value {
             Value::Class(c) => c.to_string(),
             Value::Instance(i) => i.to_string(),
             Value::BoundMethod(b) => b.to_string(),
-            Value::Nil => String::from("Nil"),
+            Value::Nil => String::from("nil"),
         };
 
         f.write_str(s.as_str())
