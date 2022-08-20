@@ -128,9 +128,9 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 
     fn if_statement(&mut self) {
-        self.consume(TokenType::LeftParen, "Expected '(' after 'if'.");
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.");
         self.expression();
-        self.consume(TokenType::RightParen, "Expected ')' after condition.");
+        self.consume(TokenType::RightParen, "Expect ')' after condition.");
 
         let then_branch = self.emit_jump(OpCode::JumpIfFalse);
         self.emit_opcode(OpCode::Pop);
@@ -149,7 +149,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     fn for_statement(&mut self) {
         // Variables declared in a for-loop live in their own scope.
         self.begin_scope();
-        self.consume(TokenType::LeftParen, "Expected '(' after 'for'.");
+        self.consume(TokenType::LeftParen, "Expect '(' after 'for'.");
 
         // Initializer clause is optional and can be an expression statement or a variable declaration.
         if self.matches(TokenType::Semicolon) {
@@ -165,7 +165,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
         // The exit condition is optional.
         let exit_jump = if !self.matches(TokenType::Semicolon) {
             self.expression();
-            self.consume(TokenType::Semicolon, "Expected ';' after loop condition.");
+            self.consume(TokenType::Semicolon, "Expect ';' after loop condition.");
             let jmp = self.emit_jump(OpCode::JumpIfFalse);
             self.emit_opcode(OpCode::Pop);
             Some(jmp)
@@ -179,7 +179,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             let inc_start = self.current_chunk().len();
             self.expression();
             self.emit_opcode(OpCode::Pop);
-            self.consume(TokenType::RightParen, "Expected ')' after for clause.");
+            self.consume(TokenType::RightParen, "Expect ')' after for clause.");
 
             self.emit_loop(loop_start);
             loop_start = inc_start;
@@ -199,9 +199,9 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
     fn while_statement(&mut self) {
         let loop_start = self.current_chunk().len();
-        self.consume(TokenType::LeftParen, "Expected '(' after 'while'.");
+        self.consume(TokenType::LeftParen, "Expect '(' after 'while'.");
         self.expression();
-        self.consume(TokenType::RightParen, "Expected ')' after condition.");
+        self.consume(TokenType::RightParen, "Expect ')' after condition.");
 
         let exit_jump = self.emit_jump(OpCode::JumpIfFalse);
         self.emit_opcode(OpCode::Pop);
@@ -227,7 +227,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 
     fn function_declaration(&mut self) {
-        let global = self.parse_variable("Expected function name.");
+        let global = self.parse_variable("Expect function name.");
         self.current_compiler().mark_local_initialized();
         self.function(FunctionType::Function);
         self.define_variable(global);
@@ -247,7 +247,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
         }
 
         self.begin_scope();
-        self.consume(TokenType::LeftParen, "Expected '(' after function name.");
+        self.consume(TokenType::LeftParen, "Expect '(' after function name.");
 
         if !self.check(TokenType::RightParen) {
             loop {
@@ -258,7 +258,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
                     self.error_at_current("Can't have more than 255 parameter names.");
                 }
 
-                let constant = self.parse_variable("Expected parameter name.");
+                let constant = self.parse_variable("Expect parameter name.");
                 self.define_variable(constant);
 
                 if !self.matches(TokenType::Comma) {
@@ -267,8 +267,8 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             }
         }
 
-        self.consume(TokenType::RightParen, "Expected ')' after parameters.");
-        self.consume(TokenType::LeftBrace, "Expected '{' before function body.");
+        self.consume(TokenType::RightParen, "Expect ')' after parameters.");
+        self.consume(TokenType::LeftBrace, "Expect '{' before function body.");
 
         self.block();
 
@@ -291,7 +291,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 
     fn class_declaration(&mut self) {
-        self.consume(TokenType::Identifier, "Expected class name.");
+        self.consume(TokenType::Identifier, "Expect class name.");
         let class_name = self.previous.clone();
         let name = self.identifier_constant(self.previous.get_lexeme_string());
         self.declare_variable();
@@ -321,11 +321,11 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
         }
 
         self.named_variable(class_name, false);
-        self.consume(TokenType::LeftBrace, "Expected '{' before class body.");
+        self.consume(TokenType::LeftBrace, "Expect '{' before class body.");
         while !self.check(TokenType::RightBrace) && !self.check(TokenType::EOF) {
             self.method();
         }
-        self.consume(TokenType::RightBrace, "Expected '}' after class body.");
+        self.consume(TokenType::RightBrace, "Expect '}' after class body.");
         self.emit_opcode(OpCode::Pop);
 
         if self.current_class_compiler().get_has_superclass() {
@@ -336,7 +336,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 
     fn method(&mut self) {
-        self.consume(TokenType::Identifier, "Expected method name.");
+        self.consume(TokenType::Identifier, "Expect method name.");
         let constant = self.identifier_constant(self.previous.get_lexeme_string());
         let kind = match self.previous.get_lexeme_string() == "init" {
             true => FunctionType::Initializer,
@@ -354,7 +354,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 
     fn dot(&mut self, can_assign: bool) {
-        self.consume(TokenType::Identifier, "Expected property name after '.'.");
+        self.consume(TokenType::Identifier, "Expect property name after '.'.");
         let name = self.identifier_constant(self.previous.get_lexeme_string());
 
         if can_assign && self.matches(TokenType::Equal) {
@@ -389,7 +389,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             }
         }
 
-        self.consume(TokenType::RightParen, "Expected ')' after arguments.");
+        self.consume(TokenType::RightParen, "Expect ')' after arguments.");
         arg_count
     }
 
@@ -407,13 +407,13 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
                 self.error("Can't return a value from an initializer.");
             }
             self.expression();
-            self.consume(TokenType::Semicolon, "Expected ';' after return value.");
+            self.consume(TokenType::Semicolon, "Expect ';' after return value.");
             self.emit_opcode(OpCode::Return);
         }
     }
 
     fn var_declaration(&mut self) {
-        let global = self.parse_variable("Expected variable name.");
+        let global = self.parse_variable("Expect variable name.");
         if self.matches(TokenType::Equal) {
             self.expression();
         } else {
@@ -422,7 +422,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
         self.consume(
             TokenType::Semicolon,
-            "Expected ';' after variable declaration.",
+            "Expect ';' after variable declaration.",
         );
         self.define_variable(global);
     }
@@ -477,7 +477,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
     fn print_statement(&mut self) {
         self.expression();
-        self.consume(TokenType::Semicolon, "Expected ';' after value.");
+        self.consume(TokenType::Semicolon, "Expect ';' after value.");
         self.emit_opcode(OpCode::Print);
     }
 
@@ -510,7 +510,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
     fn expression_statement(&mut self) {
         self.expression();
-        self.consume(TokenType::Semicolon, "Expected ';' after expression.");
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.");
         self.emit_opcode(OpCode::Pop);
     }
 
@@ -551,7 +551,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
     fn grouping(&mut self) {
         self.expression();
-        self.consume(TokenType::RightParen, "Expected ')' after expression.");
+        self.consume(TokenType::RightParen, "Expect ')' after expression.");
     }
 
     fn variable(&mut self, can_assign: bool) {
@@ -569,8 +569,8 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             self.error("Can't use 'super' in a class with no superclass.");
         }
 
-        self.consume(TokenType::Dot, "Expected '.' after 'super'.");
-        self.consume(TokenType::Identifier, "Expected superclass method name.");
+        self.consume(TokenType::Dot, "Expect '.' after 'super'.");
+        self.consume(TokenType::Identifier, "Expect superclass method name.");
         let name = self.identifier_constant(self.previous.get_lexeme_string());
         let this_dummy_token = self.synthetic_token(TokenType::Identifier, &THIS);
         self.named_variable(this_dummy_token, false);
@@ -592,7 +592,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
     fn this(&mut self) {
         if self.class_compilers.is_empty() {
-            self.error("Cannot use 'this' outside of a class");
+            self.error("Can't use 'this' outside of a class");
         } else {
             self.variable(false);
         }
@@ -663,7 +663,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             .previous
             .get_lexeme_string()
             .parse::<f64>()
-            .expect("Expected the lexeme to be a number.");
+            .expect("Expect the lexeme to be a number.");
         self.emit_constant(Value::Double(value));
     }
 
@@ -708,7 +708,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
         if let Some(ref prefix_rule) = parse_rule.get_prefix() {
             prefix_rule(self, can_assign);
         } else {
-            self.error("Expected expression.");
+            self.error("Expect expression.");
         }
 
         while precedence
