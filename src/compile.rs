@@ -404,7 +404,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             if self.current_compiler().get_function_builder().get_kind()
                 == FunctionType::Initializer
             {
-                self.error("Cannot return a value from an initializer.");
+                self.error("Can't return a value from an initializer.");
             }
             self.expression();
             self.consume(TokenType::Semicolon, "Expected ';' after return value.");
