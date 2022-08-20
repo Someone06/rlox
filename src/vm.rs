@@ -662,7 +662,7 @@ impl<O: Write, E: Write> VM<O, E> {
         } else {
             self.runtime_error(
                 format!(
-                    "Expected {} arguments, but got {}.",
+                    "Expected {} arguments but got {}.",
                     closure.get_function().get_arity(),
                     arg_count
                 )
