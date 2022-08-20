@@ -592,7 +592,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
     fn this(&mut self) {
         if self.class_compilers.is_empty() {
-            self.error("Can't use 'this' outside of a class");
+            self.error("Can't use 'this' outside of a class.");
         } else {
             self.variable(false);
         }
