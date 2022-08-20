@@ -380,8 +380,9 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
                 self.expression();
                 if arg_count == 255 {
                     self.error("Can't have more than 255 arguments.");
+                } else {
+                    arg_count += 1;
                 }
-                arg_count += 1;
 
                 if !self.matches(TokenType::Comma) {
                     break;
