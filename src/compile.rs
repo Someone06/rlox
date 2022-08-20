@@ -452,7 +452,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             {
                 self.add_local(name);
             } else {
-                self.error("Already declared a variable with this name in this scope.");
+                self.error("Already a variable with this name in this scope.");
             }
         }
     }
