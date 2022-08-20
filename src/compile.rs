@@ -652,7 +652,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
         match self.compilers[compiler_index].add_upvalue(upvalue) {
             Some(i) => i as isize,
             None => {
-                self.error("Too many closures variables in function.");
+                self.error("Too many closure variables in function.");
                 0
             }
         }
@@ -1138,7 +1138,7 @@ impl<'a> Compiler<'a> {
 
         if let Some((i, _)) = value {
             Some(i)
-        } else if self.upvalues.len() == u8::MAX as usize {
+        } else if self.upvalues.len() == (u8::MAX as usize + 1) {
             None
         } else {
             self.upvalues.push(upvalue);
