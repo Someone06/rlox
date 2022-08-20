@@ -255,7 +255,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
                 function.inc_arity(1);
 
                 if function.get_arity() > 255 {
-                    self.error_at_current("Can't have more than 255 parameter names.");
+                    self.error_at_current("Can't have more than 255 parameters.");
                 }
 
                 let constant = self.parse_variable("Expect parameter name.");
@@ -467,7 +467,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 
     fn add_local(&mut self, name: Token<'a>) {
-        if self.current_compiler().get_local_count() < (u8::MAX as usize) {
+        if self.current_compiler().get_local_count() <= (u8::MAX as usize) {
             let local = Local::new(name, -1);
             self.current_compiler().push_local(local);
         } else {
