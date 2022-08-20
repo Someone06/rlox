@@ -486,7 +486,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
             self.declaration();
         }
 
-        self.consume(TokenType::RightBrace, "Expected '}’ after block.");
+        self.consume(TokenType::RightBrace, "Expect '}' after block.");
     }
 
     fn begin_scope(&mut self) {
