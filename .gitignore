@@ -1,2 +1,5 @@
 /target
 /.idea
+
+# Ignore auto-generated test runner
+/tests/crafting_interpreters_tests.rs
