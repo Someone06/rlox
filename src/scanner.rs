@@ -266,7 +266,7 @@ impl<'a> ScannerImpl<'a> {
                 }
                 '/' => {
                     if self.peek_next() == '/' {
-                        while self.peek() != '\n' && !self.is_at_end() {
+                        while !self.is_at_end() && self.peek() != '\n' {
                             self.advance();
                         }
                     } else {
