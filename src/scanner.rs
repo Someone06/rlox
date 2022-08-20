@@ -27,7 +27,7 @@ macro_rules! chars {
 
 // Error messages.
 chars! {UNEXPECTED_CHAR 'U' 'n' 'e' 'x' 'p' 'e' 'c' 't' 'e' 'd' ' ' 'c' 'h' 'a' 'r' 'a' 'c' 't' 'e' 'r' '.'}
-chars! {UNTERMINATED_STRING 'U' 'n' 't' 'e' 'r' 'm' 'i' 'n' 'a' 't' 'e' 'd' ' ' 'S' 't' 'r' 'i' 'n' 'g' '.'}
+chars! {UNTERMINATED_STRING 'U' 'n' 't' 'e' 'r' 'm' 'i' 'n' 'a' 't' 'e' 'd' ' ' 's' 't' 'r' 'i' 'n' 'g' '.'}
 
 // Used to check for keywords.
 chars! {AR 'a' 'r'}
