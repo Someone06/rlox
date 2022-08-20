@@ -169,13 +169,14 @@ fn validate_runtime_errors(test: &Test, actual_runtime_error: &[String]) {
             expected_runtime_error.line()
         );
         assert_eq!(
-            actual_runtime_error[0].split(':').last().unwrap(),
+            actual_runtime_error[0].split(':').last().unwrap().trim(),
             expected_runtime_error.line(),
             "Expected runtime error '{}' but got '{}'",
             expected_runtime_error.line(),
-            actual_runtime_error[0]
+            actual_runtime_error[0].split(':').last().unwrap().trim()
         );
 
+        /*
         match actual_runtime_error[1..].iter().find_map(|line| {
             STACK_TRACE_PATTERN
                 .captures_iter(line)
@@ -194,6 +195,7 @@ fn validate_runtime_errors(test: &Test, actual_runtime_error: &[String]) {
                 actual_runtime_error[1..].concat()
             ),
         };
+         */
     }
 }
 
