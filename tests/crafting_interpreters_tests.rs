@@ -176,6 +176,8 @@ fn validate_runtime_errors(test: &Test, actual_runtime_error: &[String]) {
             actual_runtime_error[0].split(':').last().unwrap().trim()
         );
 
+        // No stack trace is printed in rlox.
+        // TODO: Print stacktrace on runtime error.
         /*
         match actual_runtime_error[1..].iter().find_map(|line| {
             STACK_TRACE_PATTERN
