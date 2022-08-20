@@ -198,7 +198,7 @@ impl BoundMethod {
     pub fn new(receiver: Value, method: Rc<Closure>) -> Self {
         BoundMethod {
             receiver: Box::new(receiver),
-            method,
+            method: Rc::new(Closure::clone(method.deref())),
         }
     }
 
