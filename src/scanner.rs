@@ -298,10 +298,10 @@ impl<'a> ScannerImpl<'a> {
     }
 
     fn peek_next(&self) -> char {
-        if self.is_at_end() {
-            '\0'
-        } else {
+        if self.current + 1 < self.source.len() {
             self.source[self.current + 1]
+        } else {
+            '\0'
         }
     }
 
