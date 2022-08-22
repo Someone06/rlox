@@ -50,16 +50,16 @@ RLox has three kinds of test:
    which has been ported over to Rust.
 
 All the test use Rust's default test framework.
-The test methods of the system test are generated using a `macro_rules!` macro,
-the Crafting Interpreter test are generated using a proc macro located in
+The test methods of the system tests are generated using a `macro_rules!` macro,
+the Crafting Interpreter tests are generated using a proc macro located in
 `libs/test_generator`.
 
 To run the tests use `cargo test`.
 
 ## Benchmarking and Profiling
 
-The benchmarking and profiling support currently is just a skeleton which just
-runs a single Lox program, that computes Fibonacci numbers.
+The benchmarking and profiling support currently is just a skeleton which runs a
+single Lox program, that computes Fibonacci numbers.
 
 Benchmarking uses [`criterion`](https://docs.rs/criterion/latest/criterion/).
 To run the benchmark run `cargo bench`.
@@ -75,7 +75,7 @@ The generated flame-graph is found in
 Rust's source-based code coverage relies on LLVM's coverage support.
 The [Rustc book](https://doc.rust-lang.org/rustc/instrument-coverage.html)
 describes how to use it.
-However, at the time of writing there seems to be no convenient method to
+However, at the time of writing, there seems to be no convenient method to
 integrate code coverage reports with running the tests, so this is missing for
 now.
 
@@ -85,7 +85,7 @@ Rust's code generation can make use of profile data to optimize the generated
 code.
 The
 [Rustc Book](https://doc.rust-lang.org/rustc/profile-guided-optimization.html)
-book describes how to do that.
+describes how to do that.
 However, PGO is no magic bullet.
 Before using PGO, benchmarking and profiling should be extended and used to find
 performance bottlenecks.
