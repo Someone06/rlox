@@ -811,16 +811,9 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     fn end_compile(&mut self) -> Function {
         self.emit_return();
 
+        #[cfg(feature = "debug_print_chunks")]
         if !self.had_error {
-            #[cfg(debug_assertions)]
-            {
-                let name = self
-                    .current_compiler()
-                    .get_function_builder()
-                    .get_name()
-                    .map_or(String::from("<script>"), |s| String::clone(s));
-                let _ = self.current_chunk().print_disassemble(name.as_str());
-            }
+            self.debug_print_chunk();
         }
         self.compilers.pop().unwrap().compile()
     }
@@ -864,6 +857,16 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
                 return;
             }
         }
+    }
+
+    #[cfg(feature = "debug_print_chunks")]
+    fn debug_print_chunk(&mut self) {
+        let name = self
+            .current_compiler()
+            .get_function_builder()
+            .get_name()
+            .map_or(String::from("<script>"), |s| String::clone(s));
+        let _ = self.current_chunk().print_disassemble(name.as_str());
     }
 
     fn error(&mut self, message: &str) {

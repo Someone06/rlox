@@ -86,12 +86,12 @@ impl<O: Write, E: Write> VM<O, E> {
             //         Each time we execute the loop we ensure that self.ip again points to an opcode.
             let opcode = unsafe { self.read_opcode() };
 
-            #[cfg(debug_assertions)]
+            #[cfg(feature = "debug_print_stack")]
             self.print_stack();
 
             // Safety: The last instruction read is an opcode and self.ip got incremented by one
             //         after reading it. So self.ip - 1 points to that opcode.
-            #[cfg(debug_assertions)]
+            #[cfg(feature = "debug_print_instructions")]
             unsafe {
                 let frame = self.frames.last().unwrap();
                 let chunk = frame.get_closure().get_function().get_chunk();
@@ -781,7 +781,7 @@ impl<O: Write, E: Write> VM<O, E> {
         self.reset_stack();
     }
 
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "debug_print_stack")]
     fn print_stack(&self) {
         self.stack.iter().for_each(|value| print!("[{}]", value));
         println!();

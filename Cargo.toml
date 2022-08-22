@@ -15,6 +15,13 @@ regex = "1.6.0"
 lazy_static = "1.4.0"
 test_generator = { path = "libs/test_generator" }
 
+[features]
+default = []
+debug_print_chunks = []
+debug_print_stack = []
+debug_print_instructions = []
+debug_print_all = ["debug_print_chunks", "debug_print_stack", "debug_print_instructions"]
+
 [lib]
 name = "rlox"
 path = "src/lib.rs"
