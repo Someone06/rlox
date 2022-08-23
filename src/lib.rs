@@ -22,6 +22,16 @@ pub enum Error {
     Run,
 }
 
+impl Error {
+    pub fn get_error_code(&self) -> u8 {
+        match self {
+            Error::IO => 74,
+            Error::Compile => 65,
+            Error::Run => 70,
+        }
+    }
+}
+
 fn read_file(path: &str) -> Result<String, Error> {
     std::fs::read_to_string(path).map_err(|_| Error::IO)
 }
