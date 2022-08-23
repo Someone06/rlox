@@ -1,5 +1,6 @@
 use ::std::io::Write;
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -63,11 +64,37 @@ impl From<u8> for CodeUnit {
 // We want to fit code units in an Vec<u8> so, ensure that we have the right size.
 ::static_assertions::assert_eq_size! {CodeUnit, u8}
 
+struct LineInfo {
+    line: u32,
+    count: u32,
+}
+
+impl LineInfo {
+    pub fn new(line: u32, count: u32) -> Self {
+        Self { line, count }
+    }
+
+    pub fn line(&self) -> u32 {
+        self.line
+    }
+    pub fn count(&self) -> u32 {
+        self.count
+    }
+
+    pub fn inc_count(&mut self) {
+        self.count += 1;
+    }
+
+    pub fn set_count(&mut self, count: u32) {
+        self.count = count;
+    }
+}
+
 /// A chunk represents a sequence of instructions alongside their arguments.
 pub struct Chunk {
     code: Vec<CodeUnit>,
     constants: Vec<Value>,
-    lines: Vec<u32>,
+    lines: Vec<LineInfo>,
 }
 
 // Public API of a Chunk.
@@ -83,7 +110,11 @@ impl Chunk {
     /// given instruction index.
     /// Panics if the given instruction index is out of range.
     pub fn get_source_code_line(&self, instruction_index: usize) -> u32 {
-        self.lines[instruction_index]
+        self.lines
+            .iter()
+            .find(|info| info.count() > instruction_index as u32)
+            .expect("Every opcode has a corresponding line number.")
+            .line()
     }
 
     /// Returns a reference to the value located at the given index.
@@ -143,19 +174,25 @@ impl Chunk {
 
     fn write_opcode(&mut self, opcode: OpCode, line: u32) -> usize {
         self.code.push(CodeUnit::from(opcode));
-        self.lines.push(line);
+        if let Some(info) = self.lines.last_mut() {
+            match info.line().cmp(&line) {
+                Ordering::Less => self.lines.push(LineInfo::new(line, 1)),
+                Ordering::Equal => info.inc_count(),
+                Ordering::Greater => panic!("Line numbers should not decrease."),
+            }
+        } else {
+            self.lines.push(LineInfo::new(line, 1));
+        }
+
         self.code.len() - 1
     }
 
     fn write_index(&mut self, index: u8) -> usize {
         self.code.push(CodeUnit::from(index));
-        self.lines.push(
-            *self
-                .lines
-                .last()
-                .expect("First code unit cannot be an index."),
-        );
-
+        self.lines
+            .last_mut()
+            .expect("Expected an opcode before an index.")
+            .inc_count();
         self.code.len() - 1
     }
 
@@ -181,6 +218,12 @@ impl Chunk {
     }
 
     fn finish(&mut self) {
+        let mut sum = 0;
+        for info in self.lines.iter_mut() {
+            sum += info.count();
+            info.set_count(sum);
+        }
+
         self.code.shrink_to_fit();
         self.constants.shrink_to_fit();
         self.lines.shrink_to_fit();
@@ -194,10 +237,11 @@ impl Chunk {
         writer: &mut impl Write,
     ) -> Result<usize, std::io::Error> {
         write!(writer, "{:04} ", offset)?;
-        if offset > 0 && self.lines[offset] == self.lines[offset - 1] {
+        if offset > 0 && self.get_source_code_line(offset) == self.get_source_code_line(offset - 1)
+        {
             write!(writer, "   | ")?;
         } else {
-            write!(writer, "{:4} ", self.lines[offset])?;
+            write!(writer, "{:4} ", self.get_source_code_line(offset))?;
         }
 
         let code_unit = self.code[offset];
