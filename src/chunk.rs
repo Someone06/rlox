@@ -167,8 +167,13 @@ impl Chunk {
     }
 
     fn add_constant(&mut self, value: Value) -> usize {
-        self.constants.push(value);
-        self.constants.len() - 1
+        match self.constants.iter().position(|v| v == &value) {
+            Some(index) => index,
+            None => {
+                self.constants.push(value);
+                self.constants.len() - 1
+            }
+        }
     }
 
     fn len(&self) -> usize {
