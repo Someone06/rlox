@@ -42,7 +42,6 @@ pub struct Test {
     expected_errors: Vec<String>,
     expected_runtime_error: Option<ExpectedOutput>,
     expected_exit_code: u32,
-    failures: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -59,7 +58,6 @@ impl Test {
             expected_errors: vec![],
             expected_runtime_error: None,
             expected_exit_code: 0,
-            failures: vec![],
         };
 
         let code =
@@ -176,8 +174,7 @@ fn validate_runtime_errors(test: &Test, actual_runtime_error: &[String]) {
             actual_runtime_error[0].split(':').last().unwrap().trim()
         );
 
-        // No stack trace is printed in rlox.
-        // TODO: Print stacktrace on runtime error.
+        // No stack trace is printed in rlox by default.
         /*
         match actual_runtime_error[1..].iter().find_map(|line| {
             STACK_TRACE_PATTERN
