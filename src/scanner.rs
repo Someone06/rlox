@@ -333,8 +333,8 @@ fn is_alpha(c: char) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::scanner::Scanner;
     use crate::tokens::{Token, TokenType};
-    use crate::Scanner;
 
     macro_rules! chars {
         ($input: expr) => {

@@ -121,13 +121,10 @@ impl Test {
     pub fn expected_exit_code(&self) -> u32 {
         self.expected_exit_code
     }
-    pub fn failures(&self) -> &[String] {
-        &self.failures
-    }
 }
 
 fn run_and_validate_test(test: &Test) {
-    let (_, output) = rlox::run_program(
+    let (result, output) = rlox::run_program(
         test.path().to_str().unwrap(),
         Vec::<u8>::new(),
         Vec::<u8>::new(),
@@ -150,13 +147,16 @@ fn run_and_validate_test(test: &Test) {
         .lines()
         .map(String::from)
         .collect::<Vec<String>>();
+    let exit_code = match result {
+        Ok(_) => 0,
+        Err(error) => error.get_error_code(),
+    };
 
     validate_compiler_errors(test, &compiler_out);
     validate_runtime_errors(test, &vm_err);
     validate_output(test, &vm_out);
 
-    // TODO: Obtain exit code from VM.
-    // validate_exit_code(test, _);
+    validate_exit_code(test, exit_code);
 }
 
 fn validate_runtime_errors(test: &Test, actual_runtime_error: &[String]) {
@@ -243,10 +243,10 @@ fn validate_compiler_errors(test: &Test, actual_compiler_errors: &[String]) {
     }
 }
 
-fn validate_exit_code(test: &Test, actual_exit_code: u32) {
+fn validate_exit_code(test: &Test, actual_exit_code: u8) {
     assert_eq!(
         actual_exit_code,
-        test.expected_exit_code(),
+        test.expected_exit_code() as u8,
         "Expected return code '{}’ but got '{}'",
         test.expected_exit_code(),
         actual_exit_code
