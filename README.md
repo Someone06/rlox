@@ -92,3 +92,6 @@ performance bottlenecks.
 Also, at the time of writing, there seems to be no convenient way of integrating
 PGO with the usual building process.
 
+# License
+Just like the original lox soruce code [here](https://github.com/munificent/craftinginterpreters) all the files in the repository are distributed under the MIT license, see file `LICENSE`.
+
