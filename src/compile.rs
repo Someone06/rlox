@@ -894,7 +894,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 }
 
-fn error_at<'a, W: Write>(token: &Token<'a>, message: &str, write: &mut W) {
+fn error_at<W: Write>(token: &Token<'_>, message: &str, write: &mut W) {
     let mut msg = format!("[line {}] Error", token.get_line());
     if token.get_token_type() == TokenType::EOF {
         msg.push_str(" at end");
