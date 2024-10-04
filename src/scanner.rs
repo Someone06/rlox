@@ -94,7 +94,7 @@ impl<'a> ScannerImpl<'a> {
                 None
             } else {
                 self.returned_eof = true;
-                Some(self.make_token(TokenType::EOF))
+                Some(self.make_token(TokenType::Eof))
             };
         }
 
@@ -359,7 +359,7 @@ mod tests {
     macro_rules! lexemes {
         ($v:ident) => {
             $v.iter()
-                .filter(|t| t.get_token_type() != TokenType::EOF)
+                .filter(|t| t.get_token_type() != TokenType::Eof)
                 .map(|t| t.get_lexeme())
                 .map(|l| l.iter().collect::<String>())
                 .collect::<Vec<String>>()
@@ -391,7 +391,7 @@ mod tests {
             TokenType::LessEqual,
             TokenType::Greater,
             TokenType::GreaterEqual,
-            TokenType::EOF,
+            TokenType::Eof,
         ];
         assert_eq!(tt!(result), expected_types);
     }
@@ -404,7 +404,7 @@ mod tests {
         assert_eq!(result.len(), expected.len() + 1);
         assert!(tt!(result)
             .iter()
-            .filter(|tt| *tt != &TokenType::EOF)
+            .filter(|tt| *tt != &TokenType::Eof)
             .all(|t| t.eq(&TokenType::Number)));
         assert_eq!(lexemes!(result), expected);
     }
@@ -433,7 +433,7 @@ mod tests {
             TokenType::True,
             TokenType::Var,
             TokenType::While,
-            TokenType::EOF,
+            TokenType::Eof,
         ];
 
         let input = chars!(keyword.join(" "));
@@ -451,7 +451,7 @@ mod tests {
         assert_eq!(result.len(), expected.len() + 1);
         assert!(tt!(result)
             .iter()
-            .filter(|tt| *tt != &TokenType::EOF)
+            .filter(|tt| *tt != &TokenType::Eof)
             .all(|t| t.eq(&TokenType::Identifier)));
 
         assert_eq!(lexemes!(result), expected);
@@ -466,7 +466,7 @@ mod tests {
         assert_eq!(result.len(), expected.len() + 1);
         assert!(tt!(result)
             .iter()
-            .filter(|tt| *tt != &TokenType::EOF)
+            .filter(|tt| *tt != &TokenType::Eof)
             .all(|t| t.eq(&TokenType::String)));
 
         assert_eq!(lexemes!(result), expected);
@@ -479,7 +479,7 @@ mod tests {
 
         assert_eq!(result.len(), 2);
         assert_eq![result[0].get_token_type(), TokenType::Error];
-        assert_eq![result[1].get_token_type(), TokenType::EOF];
+        assert_eq![result[1].get_token_type(), TokenType::Eof];
     }
 
     #[test]
@@ -490,7 +490,7 @@ mod tests {
         assert_eq!(result.len(), 3);
         assert_eq![result[0].get_token_type(), TokenType::If];
         assert_eq![result[1].get_token_type(), TokenType::Error];
-        assert_eq![result[2].get_token_type(), TokenType::EOF];
+        assert_eq![result[2].get_token_type(), TokenType::Eof];
     }
 
     #[test]
@@ -503,7 +503,7 @@ mod tests {
             TokenType::LeftParen,
             TokenType::True,
             TokenType::RightParen,
-            TokenType::EOF,
+            TokenType::Eof,
         ];
         assert_eq!(result.len(), expected.len());
         assert_eq!(tt!(result), expected);

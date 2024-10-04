@@ -50,7 +50,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 
     pub fn compile(mut self) -> Result<(Closure, SymbolTable, W), W> {
-        while !self.matches(TokenType::EOF) {
+        while !self.matches(TokenType::Eof) {
             self.declaration();
         }
 
@@ -84,7 +84,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     fn synchronize(&mut self) {
         self.panic_mode = false;
 
-        while !self.check(TokenType::EOF) {
+        while !self.check(TokenType::Eof) {
             if self.previous.get_token_type() == TokenType::Semicolon {
                 return;
             }
@@ -322,7 +322,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
         self.named_variable(class_name, false);
         self.consume(TokenType::LeftBrace, "Expect '{' before class body.");
-        while !self.check(TokenType::RightBrace) && !self.check(TokenType::EOF) {
+        while !self.check(TokenType::RightBrace) && !self.check(TokenType::Eof) {
             self.method();
         }
         self.consume(TokenType::RightBrace, "Expect '}' after class body.");
@@ -483,7 +483,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
     }
 
     fn block(&mut self) {
-        while !self.check(TokenType::RightBrace) && !self.check(TokenType::EOF) {
+        while !self.check(TokenType::RightBrace) && !self.check(TokenType::Eof) {
             self.declaration();
         }
 
@@ -896,7 +896,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> Parser<'a, I, W> {
 
 fn error_at<W: Write>(token: &Token<'_>, message: &str, write: &mut W) {
     let mut msg = format!("[line {}] Error", token.get_line());
-    if token.get_token_type() == TokenType::EOF {
+    if token.get_token_type() == TokenType::Eof {
         msg.push_str(" at end");
     } else if token.get_token_type() != TokenType::Error {
         msg.push_str(format!(" at '{}'", token.get_lexeme_string()).as_str());
@@ -1024,7 +1024,7 @@ impl<'a, I: Iterator<Item = Token<'a>>, W: Write> ParseRules<'a, I, W> {
             TokenType::Var          => ParseRule::new(None, None, Precedence::None),
             TokenType::While        => ParseRule::new(None, None, Precedence::None),
             TokenType::Error        => ParseRule::new(None, None, Precedence::None),
-            TokenType::EOF          => ParseRule::new(None, None, Precedence::None),
+            TokenType::Eof          => ParseRule::new(None, None, Precedence::None),
         };
 
         ParseRules { rules }
@@ -1045,9 +1045,9 @@ struct Compiler<'a> {
 impl<'a> Compiler<'a> {
     fn new(kind: FunctionType) -> Self {
         let token = if kind != FunctionType::Function {
-            Token::new(TokenType::EOF, &['t', 'h', 'i', 's'], 0)
+            Token::new(TokenType::Eof, &['t', 'h', 'i', 's'], 0)
         } else {
-            Token::new(TokenType::EOF, &[], 0)
+            Token::new(TokenType::Eof, &[], 0)
         };
 
         // We reserve the fist locals entry for internal use.

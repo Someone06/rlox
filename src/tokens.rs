@@ -49,7 +49,7 @@ pub enum TokenType {
     While,
 
     Error,
-    EOF,
+    Eof,
 }
 
 impl std::fmt::Display for TokenType {
