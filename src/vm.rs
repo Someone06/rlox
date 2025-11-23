@@ -526,25 +526,27 @@ impl<O: Write, E: Write> VM<O, E> {
     }
 
     fn close_upvalues(&mut self, last: usize) {
-        // Should use Vec::drain_filter(...) here, but that's nightly-only at the time of writing.
-        let mut i: usize = 0;
-        while i < self.open_upvalues.len() {
-            if let UpvalueLocation::Stack(s) = self.open_upvalues[i].get_location() {
-                if s >= last {
-                    let mut upvalue = self.open_upvalues.remove(i);
-                    if let UpvalueLocation::Stack(index) = upvalue.get_location().clone() {
-                        let val = self.stack[index].clone();
-                        upvalue.set_location(UpvalueLocation::Heap(std::rc::Rc::new(val)));
-                    } else {
-                        panic!("Expected upvalue to be be located on stack.");
-                    }
-                } else {
-                    i += 1;
-                }
-            } else {
-                panic!("Expected location to be on stack!");
-            }
+        let start = self.open_upvalues.iter().enumerate().rev().find(
+            |(_, upvalue)| match upvalue.get_location() {
+            UpvalueLocation::Heap(_) => true,
+            UpvalueLocation::Stack(s) => s < last
+        }).map_or(0, |(index, _)| index + 1);
+
+        if start == self.open_upvalues.len() {
+            return;
         }
+
+        self.open_upvalues.drain(start..).rev().for_each(
+            | mut upvalue | match upvalue.get_location() {
+                UpvalueLocation::Stack(index) => {
+                    let val = std::mem::replace(&mut self.stack[index], Value::Nil);
+                    upvalue.set_location(UpvalueLocation::Heap(std::rc::Rc::new(val)));
+                }
+                UpvalueLocation::Heap(_) => {
+                    panic!("Expected upvalue to be be located on stack.");
+                }
+            }
+        )
     }
 
     fn define_method(&mut self, name: Symbol) {
