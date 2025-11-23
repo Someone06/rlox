@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+export RUSTC_BOOTSTRAP=1
+export RUSTFLAGS='-Z sanitizer=leak'
+
+cargo test 2>&1 | less
