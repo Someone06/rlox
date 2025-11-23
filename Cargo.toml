@@ -10,8 +10,8 @@ weak-table = "0.3.2"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
-pprof = { version = "0.13.0", features = ["flamegraph", "criterion"] }
-regex = "1.11.0"
+pprof = { version = "0.15.0", features = ["flamegraph", "criterion"] }
+regex = "1.12.2"
 lazy_static = "1.5.0"
 test_generator = { path = "libs/test_generator" }
 
