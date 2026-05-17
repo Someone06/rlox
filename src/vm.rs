@@ -3,7 +3,7 @@ use std::io::Write;
 use std::ops::Deref;
 
 use crate::classes::{BoundMethod, Clazz, ClazzRef, InstanceRef};
-use crate::function::{clock, Closure, NativeFunction, ObjUpvalue, UpvalueLocation};
+use crate::function::{Closure, NativeFunction, ObjUpvalue, UpvalueLocation, clock};
 use crate::intern_string::{Symbol, SymbolTable};
 use crate::opcodes::OpCode;
 use crate::value::Value;
@@ -128,7 +128,9 @@ impl<O: Write, E: Write> VM<O, E> {
                         let value = self.stack.pop().unwrap().clone();
                         self.globals.insert(n, value);
                     } else {
-                        unreachable!("OpDefineGlobal has an index pointing to a string which is enforced int the compiler.");
+                        unreachable!(
+                            "OpDefineGlobal has an index pointing to a string which is enforced int the compiler."
+                        );
                     }
                 }
                 OpCode::GetGlobal => {
@@ -145,7 +147,9 @@ impl<O: Write, E: Write> VM<O, E> {
                             }
                         }
                     } else {
-                        unreachable!("OpGetGlobal has an index pointing to a string which is enforced int the compiler.");
+                        unreachable!(
+                            "OpGetGlobal has an index pointing to a string which is enforced int the compiler."
+                        );
                     }
                 }
                 OpCode::SetGlobal => {
@@ -162,7 +166,9 @@ impl<O: Write, E: Write> VM<O, E> {
                             }
                         }
                     } else {
-                        unreachable!("OpSetGlobal has an index pointing to a string which is enforced int the compiler.");
+                        unreachable!(
+                            "OpSetGlobal has an index pointing to a string which is enforced int the compiler."
+                        );
                     }
                 }
                 OpCode::GetLocal => {
@@ -216,7 +222,7 @@ impl<O: Write, E: Write> VM<O, E> {
                         .last_mut()
                         .expect("Stack should not be empty when execution OpNegate.")
                     {
-                        Value::Double(ref mut f) => *f *= -1.0,
+                        Value::Double(f) => *f *= -1.0,
                         _ => {
                             self.runtime_error("Operand must be a number.");
                             return Err(InterpretResult::RuntimeError);
@@ -526,18 +532,25 @@ impl<O: Write, E: Write> VM<O, E> {
     }
 
     fn close_upvalues(&mut self, last: usize) {
-        let start = self.open_upvalues.iter().enumerate().rev().find(
-            |(_, upvalue)| match upvalue.get_location() {
-            UpvalueLocation::Heap(_) => true,
-            UpvalueLocation::Stack(s) => s < last
-        }).map_or(0, |(index, _)| index + 1);
+        let start = self
+            .open_upvalues
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, upvalue)| match upvalue.get_location() {
+                UpvalueLocation::Heap(_) => true,
+                UpvalueLocation::Stack(s) => s < last,
+            })
+            .map_or(0, |(index, _)| index + 1);
 
         if start == self.open_upvalues.len() {
             return;
         }
 
-        self.open_upvalues.drain(start..).rev().for_each(
-            | mut upvalue | match upvalue.get_location() {
+        self.open_upvalues
+            .drain(start..)
+            .rev()
+            .for_each(|mut upvalue| match upvalue.get_location() {
                 UpvalueLocation::Stack(index) => {
                     let val = std::mem::replace(&mut self.stack[index], Value::Nil);
                     upvalue.set_location(UpvalueLocation::Heap(std::rc::Rc::new(val)));
@@ -545,15 +558,14 @@ impl<O: Write, E: Write> VM<O, E> {
                 UpvalueLocation::Heap(_) => {
                     panic!("Expected upvalue to be be located on stack.");
                 }
-            }
-        )
+            })
     }
 
     fn define_method(&mut self, name: Symbol) {
         let method = self.stack.pop().unwrap();
         if let Value::Closure(method) = method {
             match self.stack.last_mut().unwrap() {
-                Value::Class(ref mut clazz) => clazz.get_clazz_mut().set_method(name, method),
+                Value::Class(clazz) => clazz.get_clazz_mut().set_method(name, method),
                 _ => panic!("Expected a class value."),
             }
         } else {
@@ -711,56 +723,66 @@ impl<O: Write, E: Write> VM<O, E> {
     /// Safety: It is only safe to call this function when self.ip is the index of an index in
     /// self.chunk.
     unsafe fn read_index(&mut self) -> u8 {
-        let frame = self.frames.last_mut().unwrap();
-        let chunk = frame.get_closure().get_function().get_chunk();
-        let ip = frame.get_ip();
-        let code_unit = chunk.get_code_unit(ip);
-        frame.inc_ip(1);
-        code_unit.get_index()
+        unsafe {
+            let frame = self.frames.last_mut().unwrap();
+            let chunk = frame.get_closure().get_function().get_chunk();
+            let ip = frame.get_ip();
+            let code_unit = chunk.get_code_unit(ip);
+            frame.inc_ip(1);
+            code_unit.get_index()
+        }
     }
 
     /// Safety: It is only safe to call this function when self.ip is the index of an short value
     /// consisting of two consecutive indexes in self.chunk.
     unsafe fn read_short(&mut self) -> u16 {
-        let frame = self.frames.last_mut().unwrap();
-        let chunk = frame.get_closure().get_function().get_chunk();
-        let ip = frame.get_ip();
-        let code_unit_high = chunk.get_code_unit(ip);
-        let code_unit_low = chunk.get_code_unit(ip + 1);
-        frame.inc_ip(2);
+        unsafe {
+            let frame = self.frames.last_mut().unwrap();
+            let chunk = frame.get_closure().get_function().get_chunk();
+            let ip = frame.get_ip();
+            let code_unit_high = chunk.get_code_unit(ip);
+            let code_unit_low = chunk.get_code_unit(ip + 1);
+            frame.inc_ip(2);
 
-        let high = code_unit_high.get_index();
-        let low = code_unit_low.get_index();
-        ((high as u16) << 8) + (low as u16)
+            let high = code_unit_high.get_index();
+            let low = code_unit_low.get_index();
+            ((high as u16) << 8) + (low as u16)
+        }
     }
 
     /// Safety: It is only safe to call this function when self.ip is the index of an index in
     /// self.chunk.
     unsafe fn read_constant(&mut self) -> &Value {
-        let index = self.read_index();
-        let frame = self.frames.last().unwrap();
-        let chunk = frame.get_closure().get_function().get_chunk();
-        chunk.get_value_at_index(index)
+        unsafe {
+            let index = self.read_index();
+            let frame = self.frames.last().unwrap();
+            let chunk = frame.get_closure().get_function().get_chunk();
+            chunk.get_value_at_index(index)
+        }
     }
 
     /// Safety: It is only safe to call this function when self.ip is the index of an index in
     /// self.chunk.
     unsafe fn read_string(&mut self) -> &Symbol {
-        match self.read_constant() {
-            Value::String(s) => s,
-            _ => panic!("Expected a string value"),
+        unsafe {
+            match self.read_constant() {
+                Value::String(s) => s,
+                _ => panic!("Expected a string value"),
+            }
         }
     }
 
     /// Safety: It's only save to call this function when self.ip is the index of an opcode in
     ///         self.chunk.
     unsafe fn read_opcode(&mut self) -> OpCode {
-        let frame = self.frames.last_mut().unwrap();
-        let chunk = frame.get_closure().get_function().get_chunk();
-        let ip = frame.get_ip();
-        let code_unit = chunk.get_code_unit(ip);
-        frame.inc_ip(1);
-        code_unit.get_opcode()
+        unsafe {
+            let frame = self.frames.last_mut().unwrap();
+            let chunk = frame.get_closure().get_function().get_chunk();
+            let ip = frame.get_ip();
+            let code_unit = chunk.get_code_unit(ip);
+            frame.inc_ip(1);
+            code_unit.get_opcode()
+        }
     }
 
     fn runtime_error(&mut self, message: &str) {

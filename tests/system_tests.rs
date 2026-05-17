@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use rlox::{run_program, Error};
+use rlox::{Error, run_program};
 
 fn read_file(path: &str) -> Result<String, Error> {
     let path = std::path::Path::new(path);

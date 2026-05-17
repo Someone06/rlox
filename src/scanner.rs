@@ -402,10 +402,12 @@ mod tests {
         let input = chars!(expected.join(" "));
         let result = scan!(input);
         assert_eq!(result.len(), expected.len() + 1);
-        assert!(tt!(result)
-            .iter()
-            .filter(|tt| *tt != &TokenType::Eof)
-            .all(|t| t.eq(&TokenType::Number)));
+        assert!(
+            tt!(result)
+                .iter()
+                .filter(|tt| *tt != &TokenType::Eof)
+                .all(|t| t.eq(&TokenType::Number))
+        );
         assert_eq!(lexemes!(result), expected);
     }
 
@@ -449,10 +451,12 @@ mod tests {
         let result = scan!(input);
 
         assert_eq!(result.len(), expected.len() + 1);
-        assert!(tt!(result)
-            .iter()
-            .filter(|tt| *tt != &TokenType::Eof)
-            .all(|t| t.eq(&TokenType::Identifier)));
+        assert!(
+            tt!(result)
+                .iter()
+                .filter(|tt| *tt != &TokenType::Eof)
+                .all(|t| t.eq(&TokenType::Identifier))
+        );
 
         assert_eq!(lexemes!(result), expected);
     }
@@ -464,10 +468,12 @@ mod tests {
         let result = scan!(input);
 
         assert_eq!(result.len(), expected.len() + 1);
-        assert!(tt!(result)
-            .iter()
-            .filter(|tt| *tt != &TokenType::Eof)
-            .all(|t| t.eq(&TokenType::String)));
+        assert!(
+            tt!(result)
+                .iter()
+                .filter(|tt| *tt != &TokenType::Eof)
+                .all(|t| t.eq(&TokenType::String))
+        );
 
         assert_eq!(lexemes!(result), expected);
     }

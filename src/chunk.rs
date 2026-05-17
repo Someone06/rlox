@@ -23,7 +23,6 @@ use crate::value::Value;
 /// not know at the time the jump instruction is written. Adding a path allows to continue appending
 /// instruction and filling the patch with the concrete index which should be jumped to later on
 /// when the exact index is known.
-
 /// Some opcodes require arguments in form of values (e.g. doubles or strings).
 /// Instead of storing these inline we have a separate pool for values in which we index.
 /// The indexes are stored inline in the instruction sequence.
@@ -38,14 +37,14 @@ impl CodeUnit {
     ///         It is only safe to call this method if it is known (from external knowledge) that
     ///         this code unit currently stores an opcode and not an index.
     pub unsafe fn get_opcode(&self) -> OpCode {
-        self.opcode
+        unsafe { self.opcode }
     }
 
     /// Safety: A code unit eiter stores an opcode or an index, but not which one is stored.
     ///         It is only safe to call this method if it is known (from external knowledge) that
     ///         this code unit currently stores an index and not an opcode.
     pub unsafe fn get_index(&self) -> u8 {
-        self.index
+        unsafe { self.index }
     }
 }
 
@@ -148,7 +147,7 @@ impl Chunk {
         &self,
         offset: usize,
     ) -> Result<(), std::io::Error> {
-        self.disassemble_instruction_unsafe(offset, &mut std::io::stdout())
+        unsafe { self.disassemble_instruction_unsafe(offset, &mut std::io::stdout()) }
     }
 
     /// Writes a disassemble of the opcode at the given offset to the given writer.
@@ -506,8 +505,10 @@ impl Patch {
         let high = ((position & 0xff00u16) >> 8) as u8;
         let low = (position & 0x00ffu16) as u8;
         let mut builder = self.builder.deref().borrow_mut();
-        builder.chunk.write_index_at(high, self.location);
-        builder.chunk.write_index_at(low, self.location + 1);
+        unsafe {
+            builder.chunk.write_index_at(high, self.location);
+            builder.chunk.write_index_at(low, self.location + 1);
+        }
         builder.patch_count -= 1;
     }
 
